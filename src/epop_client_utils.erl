@@ -1,10 +1,30 @@
 -module(epop_client_utils).
 -author("Harish Mallipeddi <harish.mallipeddi@gmail.com>").
 
+%%%---------------------------------------------------------------------
+%%% File    : epop_client_utils.erl
+%%% Created : 10 Sep 2008 by harish.mallipeddi@gmail.com
+%%% Function: Some helper utils for the client.
+%%% ====================================================================
+%%% The contents of this file are subject to the Erlang Public License
+%%% License, Version 1.1, (the "License"); you may not use this file
+%%% except in compliance with the License. You may obtain a copy of the
+%%% License at http://www.erlang.org/EPLICENSE
+%%%
+%%% Software distributed under the License is distributed on an "AS IS"
+%%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
+%%% the License for the specific language governing rights and limitations
+%%% under the License.
+%%%
+%%% Contents of this file are taken from the original epop code.
+%%%---------------------------------------------------------------------
+
 -export([recv_sl/1,recv_ml/1,recv_ml_on_ok/1,tokenize/1]).
 
 -define(CR, 13).
 -define(LF, 10).
+
+-include("epop_client.hrl").
 
 %% ---------------------------------------------------------
 %% If we are receiving a positive response, then receive
@@ -13,10 +33,10 @@
 
 recv_ml_on_ok(S) ->
     case recv_3_chars(S) of
-	[$+,$O,$K|T] ->
-	    recv_ml(S,[$+,$O,$K|T]);
-	Else ->
-	    recv_sl(S,Else)
+	    [$+,$O,$K|T] ->
+	        recv_ml(S,[$+,$O,$K|T]);
+	    Else ->
+	        recv_sl(S,Else)
     end.
 
 recv_3_chars(S) -> recv_3_chars(S,recv(S)).
@@ -89,9 +109,15 @@ complete_sl_lf(S,[],Line) ->
     complete_sl_lf(S,recv(S),Line).
 
 recv(S) ->
-    case gen_tcp:recv(S,0) of
-	{ok,Packet} -> Packet;
-	Else        -> exit(Else)
+    case recv_proto(S) of
+        {ok,Packet} -> Packet;
+        Else        -> exit(Else)
+    end.
+
+recv_proto(S) ->
+    case S#sk.ssl of
+        true -> ssl:recv(S#sk.sockfd,0);
+        false -> gen_tcp:recv(S#sk.sockfd,0)
     end.
 
 %% -----------------------------------------------

@@ -1,5 +1,6 @@
 -module(epop_md5).
 -author('tony@erix.ericsson.se').
+
 %%% --------------------------------------------------------------------
 %%% File    : md5.erl
 %%% Author  : Tony Rogvall <tony@erix.ericsson.se>
@@ -19,6 +20,7 @@
 %%% Adopted : 17 Aug 1998 by tobbe@serc.rmit.edu.au
 %%%           Made it into an epop module and cleaned it up a bit.
 %%% --------------------------------------------------------------------
+
 -export([string/1]).
 
 -import(lists, [reverse/1]).

@@ -1,14 +1,15 @@
 -module(epop_client).
--author('tobbe@serc.rmit.edu.au').
+-author("Harish Mallipeddi <harish.mallipeddi@gmail.com>").
+
 %%%---------------------------------------------------------------------
 %%% File    : epop_client.erl
-%%% Created : 11 Mar 1998 by tobbe@serc.rmit.edu.au
-%%% Function: The client functions of the Erlang POP3 package
+%%% Created : 10 Sep 2008 by harish.mallipeddi@gmail.com
+%%% Function: POP3 client (with SSL support)
 %%% ====================================================================
 %%% The contents of this file are subject to the Erlang Public License
-%%% License, Version 1.0, (the "License"); you may not use this file
+%%% License, Version 1.1, (the "License"); you may not use this file
 %%% except in compliance with the License. You may obtain a copy of the
-%%% License at http://www.eddieware.org/EPL
+%%% License at http://www.erlang.org/EPLICENSE
 %%%
 %%% Software distributed under the License is distributed on an "AS IS"
 %%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
@@ -21,9 +22,12 @@
 %%% AB. Portions created by Ericsson are Copyright (C), 1998, Ericsson
 %%% Telecom AB. All Rights Reserved.
 %%%
-%%% Contributor(s): ______________________________________.
+%%% Contributor(s):
+%%%     11 Mar 1998 by tobbe@serc.rmit.edu.au
+%%%     10 Sep 2008 by harish.mallipeddi@gmail.com (added support for SSL).
 %%%
 %%%---------------------------------------------------------------------
+
 -vc('$Id$ ').
 -export([connect/2,connect/3,stat/1,scan/1,scan/2,retrieve/2,delete/2,
 	 reset/1,quit/1,uidl/1,uidl/2,top/3]).
@@ -32,13 +36,7 @@
 -import(error_logger,[error_msg/1]).
 -import(epop_client_utils,[recv_sl/1,recv_ml/1,recv_ml_on_ok/1,tokenize/1]).
 
-
--record(sk, {user,            % User name
-	     addr,            % Address
-	     sockfd,          % Socket filedesc.
-	     port=110,        % The POP3 server port number
-	     apop=false,      % Use APOP authentication if true.
-	     snoop=false}).   % Trace on/off
+-include("epop_client.hrl").
 
 %% ----------------------------------------------
 %% Accept a NOTIFY connection from an Epop server
@@ -60,7 +58,7 @@ do_accept(Lsock,Passwd,Options) ->
     end.
 
 parse_notification(S,Passwd) ->
-    case recv_sl(S#sk.sockfd) of
+    case recv_sl(S) of
 	{[$N,$T,$F,$Y|T],_} ->
 	    User = parse_user(T),
 	    answer_greeting(S#sk{user=User},Passwd,T);
@@ -93,10 +91,22 @@ connect(User,Passwd,Options) when list(User),list(Passwd),list(Options) ->
 
 do_connect(User,Passwd,Options) when list(User),list(Passwd),list(Options) ->
     S = init_session(User,Options),
-    Opts = [{packet,raw},{reuseaddr,true},{active,false}],
-    case gen_tcp:connect(S#sk.addr,S#sk.port,Opts) of
-	{ok,Sock} -> get_greeting(S#sk{sockfd=Sock},Passwd);
-	_         -> {error,connect_failed}
+    case do_connect_proto(S) of
+        {ok,Sock} -> get_greeting(S#sk{sockfd=Sock},Passwd);
+        _         -> {error,connect_failed}
+    end.
+
+do_connect_proto(S) ->
+    case S#sk.ssl of
+        false ->
+            %% default POP3
+            Opts = [{packet,raw}, {reuseaddr,true}, {active,false}],
+            gen_tcp:connect(S#sk.addr, S#sk.port, Opts);
+        true ->
+            %% handle POP3 over SSL
+            application:start(ssl),
+            Opts = [{packet,raw}, {reuseaddr,true}, {active,false}],
+            ssl:connect(S#sk.addr, S#sk.port, Opts)
     end.
 
 %% -----------------------------------------------
@@ -104,12 +114,12 @@ do_connect(User,Passwd,Options) when list(User),list(Passwd),list(Options) ->
 %% perform the specified authentication procedure.
 
 get_greeting(S,Passwd) ->
-    case recv_sl(S#sk.sockfd) of
-	{[$+,$O,$K|T],_} ->
-	    answer_greeting(S,Passwd,T);
-	{[$-,$E,$R,$R|T],_} ->
-	    if_snoop(S,sender,"-ERR" ++ T),
-	    {error,T}
+    case recv_sl(S) of
+    	{[$+,$O,$K|T],_} ->
+    	    answer_greeting(S,Passwd,T);
+    	{[$-,$E,$R,$R|T],_} ->
+    	    if_snoop(S,sender,"-ERR" ++ T),
+    	    {error,T}
     end.
 
 answer_greeting(S,Passwd,T) when S#sk.apop==false ->
@@ -140,7 +150,7 @@ parse_banner_timestamp(Banner) ->
 %% reply with the password.
 
 send_passwd(S,Passwd) ->
-    case recv_sl(S#sk.sockfd) of
+    case recv_sl(S) of
 	{[$+,$O,$K|T],_} ->
 	    if_snoop(S,sender,"+OK" ++ T),
 	    Msg = "PASS " ++ Passwd,
@@ -163,7 +173,7 @@ stat(S) ->
     get_stat(S).
 
 get_stat(S) ->
-    case recv_sl(S#sk.sockfd) of
+    case recv_sl(S) of
 	{[$+,$O,$K|T],_} ->
 	    if_snoop(S,sender,"+OK" ++ T),
 	    [NumMsg,TotSize] = string:tokens(T," \r\n"),
@@ -188,7 +198,7 @@ do_scan(S,Msg,MultiLine) ->
     get_scanlist(S,MultiLine).
 
 get_scanlist(S,MultiLine) ->
-    case scan_recv(S#sk.sockfd,MultiLine) of
+    case scan_recv(S,MultiLine) of
 	{[$+,$O,$K|T],_} when MultiLine==true ->
 	    [Line1|Ls] = tokenize("+OK" ++ T),
 	    if_snoop(S,sender,Line1),
@@ -232,7 +242,7 @@ top(S,MsgNum,Lines) when integer(MsgNum), integer(Lines) ->
     get_retrieve(S).
 
 get_retrieve(S) ->
-    case recv_ml_on_ok(S#sk.sockfd) of
+    case recv_ml_on_ok(S) of
 	{[$+,$O,$K|T],_} ->
 	    {Line,Ls} = get_line("+OK" ++ T),
 	    if (S#sk.snoop==true) ->
@@ -270,7 +280,7 @@ do_uidl(S,Msg,MultiLine) ->
     get_uidllist(S,MultiLine).
 
 get_uidllist(S,MultiLine) ->
-    case uidl_recv(S#sk.sockfd,MultiLine) of
+    case uidl_recv(S,MultiLine) of
 	{[$+,$O,$K|T],_} when MultiLine==true ->
 	    [Line1|Ls] = tokenize("+OK" ++ T),
 	    if_snoop(S,sender,Line1),
@@ -336,7 +346,10 @@ quit(S) ->
 	      {ok,_} -> ok;
 	      Else   -> Else
 	  end,
-    gen_tcp:close(S#sk.sockfd),
+    case S#sk.ssl of
+        true -> ssl:close(S#sk.sockfd);
+        false -> gen_tcp:close(S#sk.sockfd)
+    end,
     Res.
 
 %% ----------------------------------------------------
@@ -357,7 +370,7 @@ do_notify(S,Msg) ->
 %% ends this transaction.
 
 get_ok(S) ->
-    case recv_sl(S#sk.sockfd) of
+    case recv_sl(S) of
 	{[$+,$O,$K|T],_} ->
 	    if_snoop(S,sender,"+OK" ++ T),
 	    {ok,S};
@@ -370,8 +383,11 @@ get_ok(S) ->
 %% -----------------------------
 %% Send a CRLF terminated string
 
-deliver(S,Msg) -> gen_tcp:send(S#sk.sockfd,Msg ++ "\r\n").
-
+deliver(S,Msg) ->
+    case S#sk.ssl of
+        true -> ssl:send(S#sk.sockfd, Msg ++ "\r\n");
+        false -> gen_tcp:send(S#sk.sockfd, Msg ++ "\r\n")
+    end.
 
 %% ---------------------------------------
 %% Print trace info if snoop option is set
@@ -415,6 +431,12 @@ set_options([apop|T],S) ->
     set_options(T,S#sk{apop=true});
 set_options([upass|T],S) ->
     set_options(T,S#sk{apop=false});
+set_options([ssl|T],S) ->
+    set_options(T,S#sk{ssl=true});
+set_options([{addr,Addr}|T], S) ->
+    set_options(T,S#sk{addr=Addr});
+set_options([{user,User}|T], S) ->
+    set_options(T,S#sk{user=User});
 set_options([X|_],_) ->
     throw({error,{unknown_option,X}});
 set_options([],S) ->
