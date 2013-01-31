@@ -104,7 +104,8 @@ do_connect_proto(S) ->
             gen_tcp:connect(S#sk.addr, S#sk.port, Opts);
         true ->
             %% handle POP3 over SSL
-            application:start(ssl),
+%            application:start(ssl),
+			ssl:start(),
             Opts = [{packet,raw}, {reuseaddr,true}, {active,false}],
             ssl:connect(S#sk.addr, S#sk.port, Opts)
     end.
