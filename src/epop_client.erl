@@ -237,7 +237,7 @@ retrieve(S,MsgNum) when integer(MsgNum) ->
     get_retrieve(S).
 
 top(S,MsgNum,Lines) when integer(MsgNum), integer(Lines) -> 
-    Msg = "RETR " ++ integer_to_list(MsgNum) ++ " " ++ integer_to_list(Lines),
+    Msg = "TOP " ++ integer_to_list(MsgNum) ++ " " ++ integer_to_list(Lines),
     deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_retrieve(S).
