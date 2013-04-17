@@ -1,0 +1,12 @@
+{application, erlpop,
+ [
+  {description, "POP3 client for Erlang with SSL support"},
+  {vsn, "1.1"},
+  {registered, []},
+  {applications, [kernel,
+                  stdlib
+                  % Optionally: ssl if SSL support is needed.
+                 ]},
+  {env, []}
+ ]}.
+
