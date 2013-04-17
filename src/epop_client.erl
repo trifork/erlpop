@@ -45,7 +45,7 @@
 accept(Lsock,Passwd) ->
     accept(Lsock,Passwd,[]).
 
-accept(Lsock,Passwd,Options) when list(Passwd),list(Options) ->
+accept(Lsock,Passwd,Options) when is_list(Passwd), is_list(Options) ->
     catch do_accept(Lsock,Passwd,Options).
 
 do_accept(Lsock,Passwd,Options) ->
@@ -84,12 +84,12 @@ parse_user(T) ->
 connect(User,Passwd) ->
     connect(User,Passwd,[]).
 
-connect(User,Passwd,Options) when atom(User) ->
+connect(User,Passwd,Options) when is_atom(User) ->
     connect(atom_to_list(User),Passwd,Options);
-connect(User,Passwd,Options) when list(User),list(Passwd),list(Options) ->
+connect(User,Passwd,Options) when is_list(User), is_list(Passwd), is_list(Options) ->
     catch do_connect(User,Passwd,Options).
 
-do_connect(User,Passwd,Options) when list(User),list(Passwd),list(Options) ->
+do_connect(User,Passwd,Options) when is_list(User), is_list(Passwd), is_list(Options) ->
     S = init_session(User,Options),
     case do_connect_proto(S) of
         {ok,Sock} -> get_greeting(S#sk{sockfd=Sock},Passwd);
@@ -190,7 +190,7 @@ get_stat(S) ->
 
 scan(S) -> do_scan(S,"LIST",true).
 
-scan(S,Num) when integer(Num) ->
+scan(S,Num) when is_integer(Num) ->
     do_scan(S,"LIST " ++ integer_to_list(Num),false).
 
 do_scan(S,Msg,MultiLine) ->
@@ -230,13 +230,13 @@ scan_recv(SockFd,false) -> recv_sl(SockFd).
 %% Get specified mail
 %% ------------------
 
-retrieve(S,MsgNum) when integer(MsgNum) -> 
+retrieve(S,MsgNum) when is_integer(MsgNum) -> 
     Msg = "RETR " ++ integer_to_list(MsgNum),
     deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_retrieve(S).
 
-top(S,MsgNum,Lines) when integer(MsgNum), integer(Lines) -> 
+top(S,MsgNum,Lines) when is_integer(MsgNum), is_integer(Lines) -> 
     Msg = "TOP " ++ integer_to_list(MsgNum) ++ " " ++ integer_to_list(Lines),
     deliver(S,Msg),
     if_snoop(S,client,Msg),
@@ -272,7 +272,7 @@ get_line(Str) ->
 
 uidl(S) -> do_uidl(S,"UIDL",true).
 
-uidl(S,Num) when integer(Num) ->
+uidl(S,Num) when is_integer(Num) ->
     do_uidl(S,"UIDL " ++ integer_to_list(Num),false).
 
 do_uidl(S,Msg,MultiLine) ->
@@ -312,7 +312,7 @@ uidl_recv(SockFd,false) -> recv_sl(SockFd).
 %% Mark mail for deletion
 %% ----------------------
 
-delete(S,MsgNum) when integer(MsgNum) ->
+delete(S,MsgNum) when is_integer(MsgNum) ->
     Msg = "DELE " ++ integer_to_list(MsgNum),
     deliver(S,Msg),
     if_snoop(S,client,Msg),
@@ -358,7 +358,7 @@ quit(S) ->
 %% NB: This is my little extension of the POP3 protocol
 %% ----------------------------------------------------
 
-notify(S,Host,PortNo) when list(Host),integer(PortNo) ->
+notify(S,Host,PortNo) when is_list(Host), is_integer(PortNo) ->
     do_notify(S,"NTFY " ++ Host ++ " " ++ integer_to_list(PortNo)).
 
 do_notify(S,Msg) ->
@@ -443,13 +443,13 @@ set_options([X|_],_) ->
 set_options([],S) ->
     S.
 
-s2i(String) when list(String) ->
+s2i(String) when is_list(String) ->
     l2i(strip(String)).
 
 %% Remove any trailing stuff from the (ascii) integer value
 strip([H|T]) when H>-48,H=<57 -> [H|strip(T)];
 strip(_)                      -> [].
 
-l2i(List) when list(List)  -> list_to_integer(List);
-l2i(Int) when integer(Int) -> Int.
+l2i(List) when is_list(List)  -> list_to_integer(List);
+l2i(Int) when is_integer(Int) -> Int.
 
