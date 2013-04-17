@@ -21,7 +21,8 @@
 -export([parse/1, find_header/2]).
 
 parse(Message) ->
-    {_, Boundary, _} = regexp:first_match(Message, "\r\n\r\n"),
+    Boundary = string:str(Message, "\r\n\r\n"),
+    Boundary>0 orelse error({parse_failed, end_of_header_not_found}),
     Header = string:substr(Message, 1, Boundary - 1),
     Body = string:substr(Message, Boundary + 4),
     Headers = parse_headers(Header),
@@ -38,7 +39,8 @@ parse_headers(Header) ->
     lists:map(fun parse_header/1, RawHeaders).
 
 parse_header(RawHeader) ->
-    {_, Boundary, _} = regexp:first_match(RawHeader, ":"),
+    Boundary = string:str(RawHeader, ":"),
+    Boundary>0 orelse error({parse_failed, end_of_header_name_found}),
     HeaderName = string:strip(string:substr(RawHeader, 1, Boundary - 1)),
     HeaderVal = string:strip(string:substr(RawHeader, Boundary + 1)),
     {header, HeaderName, HeaderVal}.
