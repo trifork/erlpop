@@ -111,7 +111,7 @@ update(Buf0, Len0, State0, Count) when Len0 >= 64 ->
     {Xs,Buf1} = decode(Buf0, 64),
     State1 = transform(State0, Xs),
     update(Buf1, Len0 - 64, State1, Count);
-update(Buf0, Len0, State0, Count) ->
+update(Buf0, _, State0, Count) ->
     #md5_ctx { state = State0, count = Count, buffer = Buf0 }.
 
 %% produce a digest
