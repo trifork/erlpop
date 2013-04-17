@@ -139,9 +139,9 @@ answer_greeting(S,Passwd,T) when S#sk.apop==true ->
     get_ok(S).
 
 parse_banner_timestamp(Banner) ->
-    case regexp:match(Banner,"<.*>") of
-	{match,Start,Length} ->
-	    string:substr(Banner,Start,Length);
+    case re:run(Banner,"<.*>", [{capture,first,list}]) of
+	{match,[Timestamp]} ->
+            Timestamp;
 	_ ->
 	    throw({error,apop_banner_timestamp})
     end.
