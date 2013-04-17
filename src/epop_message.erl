@@ -28,13 +28,13 @@ parse(Message) ->
     Headers = parse_headers(Header),
     {message, Headers, Body}.
 
-parse_headers(Header) ->    
+parse_headers(Header) ->
     %% do "unfolding" first
     %% read more about unfolding long header fields here - http://www.faqs.org/rfcs/rfc2822.html
-    {ok, Chunks} = regexp:split(Header, "\r\n[ |\t]"),
-    UnfoldedHeader = string:join(Chunks, " "),
-    
-    {ok, RawHeaders} = regexp:split(UnfoldedHeader, "\r\n"),
+    %% "Unfolding is accomplished by simply removing any CRLF
+    %% that is immediately followed by WSP"
+    UnfoldedHeader = re:replace(Header, "\r\n(?=[ \t])","", [{return,list},global]),
+    RawHeaders = re:split(UnfoldedHeader, "\r\n", [{return, list}]),
     %io:format("raw headers = ~n~p~n", [RawHeaders]),
     lists:map(fun parse_header/1, RawHeaders).
 
