@@ -55,7 +55,6 @@ address([]) -> throw({parse_error, "Expected address"});
 address(S) -> address(skip_ws(S), []).
 
 address([$< | S], NameAcc) ->
-    io:format("DB| address(~p)\n", [S]),
     {Addr, S2} = addr_spec(S),
     Name = lists:concat(lists:reverse(pop_ws(NameAcc))),
     case S2 of
