@@ -46,7 +46,29 @@ address_list(S, Acc) ->
 
 address_list_p1([], Acc) -> lists:reverse(Acc);
 address_list_p1([$, | S], Acc) -> address_list(S, Acc);
-address_list_p1([C | _S], _Acc) -> {error, {syntax_error_near, [C]}}.
+address_list_p1([C | _S], _Acc) ->
+    throw({parse_error, "Syntax error near '"++to_str(C)++"'"}).
+
+%% "Empty list allowed" version - and stop at ";":
+address_list_in_group([$; | S]) ->
+    % Empty group.
+    {group_end, [], S};
+address_list_in_group(S) ->
+    address_list_in_group(S, []).
+
+address_list_in_group([], Acc) ->
+    % Missing group terminator. Allow for leniency.
+    {group_end, lists:reverse(Acc), []};
+address_list_in_group(S, Acc) ->
+    {Item,S2} = address(skip_ws(S)),
+    case skip_ws(S2) of
+        [$, | S3] ->
+            address_list_in_group(S3, [Item|Acc]);
+        [$; | S3] ->
+            {group_end, lists:reverse([Item|Acc]), S3};
+        [C | _S3] ->
+            throw({parse_error, "Syntax error near '"++to_str(C)++"'"})
+    end.
 
 %   address         =   mailbox / group
 %   mailbox         =   name-addr / addr-spec
@@ -56,7 +78,7 @@ address(S) -> address(skip_ws(S), []).
 
 address([$< | S], NameAcc) ->
     {Addr, S2} = addr_spec(S),
-    Name = lists:concat(lists:reverse(pop_ws(NameAcc))),
+    Name = acc_to_str(pop_ws(NameAcc)),
     case S2 of
         [$> | S3] -> {{Addr, Name},S3};
         [X | _] -> throw({parse_error, "Expected '>' but found '"++to_str(X)++"'"})
@@ -74,10 +96,22 @@ address([C | S], NameAcc) when is_integer(C),
 address([$@ | S], NameAcc) ->
     %% Free-standing address without a name
     %% TODO: This is currently too lenient.
-    LocalPart = lists:concat(lists:reverse(pop_ws(NameAcc))),
+    LocalPart = acc_to_str(pop_ws(NameAcc)),
     {Address, S2} = addr_spec_p2(LocalPart, S),
     {{Address, ""}, S2};
-address(X, NameAcc) ->
+address([$: | S], NameAcc) ->
+    %% Named group
+    %% TODO: Handle groups better
+    GroupName = acc_to_str(pop_ws(NameAcc)),
+    case address_list_in_group(skip_ws(S)) of
+        {group_end, Addrs, S2} -> ok;
+        Addrs -> S2="", ok % ";" was missing
+    end,
+    {{group, GroupName, Addrs}, S2};
+address([$; | S], NameAcc) ->
+    %% End of group.
+    {none, S};
+address([X | _]=_S, NameAcc) ->
     throw({parse_error, "Invalid token in address: '"++to_str(X)++"'"}).
 
 %   addr-spec       =   local-part "@" domain
@@ -104,7 +138,7 @@ dot_atom([$. | S], Acc) ->
 dot_atom([L | S], Acc) when is_list(L) ->
     dot_atom(S, [L | Acc]);
 dot_atom(S, Acc) ->
-    {lists:concat(lists:reverse(Acc)), skip_ws(S)}.
+    {acc_to_str(Acc), skip_ws(S)}.
 
 %   domain          =   dot-atom / domain-literal / obs-domain
 domain(S) -> domain_after_ws(skip_ws(S)).
@@ -121,7 +155,7 @@ domain_after_ws(S) -> dot_atom(S).
 domain_literal([$[ | S]) -> domain_literal(skip_ws(S), []).
 
 domain_literal([$] | S], Acc) ->
-    {lists:concat(lists:reverse(Acc)), S};
+    {acc_to_str(Acc), S};
 domain_literal([C | _S], _Acc) when C =:= $[;
                                     C =:= $\\ ->
     throw({parse_error, "Invalid character in domain-literal: '"++[C]++"'"});
@@ -137,7 +171,7 @@ quoted_string_aux([], _Acc) ->
     throw({parse_error, "Unterminated quoted string"});
 quoted_string_aux([$" | S], Acc) -> %"]) ->
     %% End of string.
-    {lists:concat(lists:reverse(Acc)), S};
+    {acc_to_str(Acc), S};
 quoted_string_aux([$\\, C | S], Acc) when C =:= $\t;
                                           C >= $\s andalso C =< 126 ->
     %% quoted-pair.
@@ -154,6 +188,9 @@ quoted_string_aux([C | S], Acc) when is_integer(C) ->
 
 to_str(C) when is_integer(C) -> [C];
 to_str(L) when is_list(L) -> L.
+
+acc_to_str(L) ->
+    lists:concat(lists:reverse(L)).
 
 %%% Tokenize according to 'specials'.
 tokenize([]) -> [];

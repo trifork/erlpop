@@ -1,4 +1,4 @@
--module(mail_parse_test).
+-module(parser_tests).
 -compile(export_all).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -27,6 +27,7 @@ address_parse_happy_case_test_() ->
             {"<Aa_.+09@aA_90>", [{{"Aa_.+09", "aA_90"}, ""}]},
             %% Free-standing email address
             {"a@b.com", [{{"a","b.com"}, ""}]},
+            {"a@b.com, c@d", [{{"a","b.com"}, ""}, {{"c","d"}, ""}]},
             %% Top-level domain address
             {"<fred@com>", [{{"fred","com"}, ""}]},
             %% Surrounding whitespace
@@ -42,6 +43,21 @@ address_parse_happy_case_test_() ->
              [{{"()<>[]:;@\\,.\"","org"},""}]},
             %% Long address, with dots
             {"<firstname.surname@a.long.domain.name>", [{{"firstname.surname","a.long.domain.name"}, ""}]},
+            %% Groups
+            {"undisclosed-recipients:;",
+             [{group, "undisclosed-recipients", []}]},
+            {"<a@b>, undisclosed-recipients:;, <c@d>",
+             [{{"a","b"}, ""},
+              {group, "undisclosed-recipients", []},
+              {{"c","d"}, ""}]},
+            {"group1:<foo@bar>;, b@c, group2 : <x@z>, <y@quux>;",
+             [{group, "group1", [{{"foo","bar"},""}]},
+              {{"b","c"},""},
+              {group, "group2", [{{"x","z"},""}, {{"y","quux"},""}]}]},
+            {" group1 : <foo@bar>; , b@c , group2 : <x@z> , <y@quux> ; ",
+             [{group, "group1", [{{"foo","bar"},""}]},
+              {{"b","c"},""},
+              {group, "group2", [{{"x","z"},""}, {{"y","quux"},""}]}]},
             %% Examples from RFC5322:
             {"\"Joe Q. Public\" <john.q.public@example.com>",
              [{{"john.q.public","example.com"}, "Joe Q. Public"}]},
