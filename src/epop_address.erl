@@ -25,13 +25,23 @@
 %%% It might be a good idea to use something like 'abfnc' for generating
 %%% a compliant parser from the spec.
 
--export([parse_list/1]).
+-export([parse_list/1, expand_groups/1]).
 
 -type name() :: string() | undefined.
 -type address() :: string().
+-type named_address() :: {address(), name()}.
+-type address_group() :: {group, GroupName::string(), [named_address()]}.
+
+%%% Flatten address list by expanding groups.
+-spec expand_groups/1 :: ([named_address() | address_group()]) -> [named_address()].
+expand_groups(Items) when is_list(Items) ->
+    lists:flatmap(fun({group, _GroupName, L}) -> L;
+                     ({_,_}=Addr)             -> [Addr]
+                  end,
+                  Items).
 
 %%% Parse an address-list according to RFC5322.
--spec parse_list/1 :: (string()) -> [{address(), name()}].
+-spec parse_list/1 :: (string()) -> [named_address() | address_group()].
 parse_list(S) ->
     try {ok, address_list(tokenize(S), [])}
     catch
@@ -108,10 +118,11 @@ address([$: | S], NameAcc) ->
         Addrs -> S2="", ok % ";" was missing
     end,
     {{group, GroupName, Addrs}, S2};
-address([$; | S], NameAcc) ->
+address([$; | S], []) ->
     %% End of group.
+    %% TODO: Handle case NameAcc /= []
     {none, S};
-address([X | _]=_S, NameAcc) ->
+address([X | _]=_S, _NameAcc) ->
     throw({parse_error, "Invalid token in address: '"++to_str(X)++"'"}).
 
 %   addr-spec       =   local-part "@" domain

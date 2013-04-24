@@ -73,3 +73,13 @@ address_parse_happy_case_test_() ->
     [{Input, % set test title
       ?_assertEqual({ok,Expected}, epop_address:parse_list(Input))}
      || {Input, Expected} <- Spec].
+
+expand_groups_test() ->
+    Input = "group1:<foo@bar>;, b@c, group2 : <x@z>, <y@quux>;",
+    {ok, Addrs} = epop_address:parse_list(Input),
+    Output = (catch epop_address:expand_groups(Addrs)),
+    ?assertEqual([{{"foo","bar"},""},
+                  {{"b","c"},""},
+                  {{"x","z"},""},
+                  {{"y","quux"},""}],
+                 Output).
