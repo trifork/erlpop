@@ -92,8 +92,20 @@ connect(User,Passwd,Options) when is_list(User), is_list(Passwd), is_list(Option
 do_connect(User,Passwd,Options) when is_list(User), is_list(Passwd), is_list(Options) ->
     S = init_session(User,Options),
     case do_connect_proto(S) of
-        {ok,Sock} -> get_greeting(S#sk{sockfd=Sock},Passwd);
-        _         -> {error,connect_failed}
+        {ok,Sock} ->
+            %% Ensure to close the socket in all error cases:
+            try get_greeting(S#sk{sockfd=Sock},Passwd) of
+                {ok, _}=Result ->
+                    Result;
+                {error,_}=Result ->
+                    do_close(S),
+                    Result
+            catch Cls:Error ->
+                    do_close(S),
+                    erlang:raise(Cls, Error, erlang:get_stacktrace())
+            end;
+        _ ->
+            {error,connect_failed}
     end.
 
 do_connect_proto(S) ->
@@ -377,11 +389,14 @@ quit(S) ->
 	      {ok,_} -> ok;
 	      Else   -> Else
 	  end,
+    do_close(S),
+    Res.
+
+do_close(S) ->
     case S#sk.ssl of
         true -> ssl:close(S#sk.sockfd);
         false -> gen_tcp:close(S#sk.sockfd)
-    end,
-    Res.
+    end.
 
 %% ----------------------------------------------------
 %% Order notification.
