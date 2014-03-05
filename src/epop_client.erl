@@ -61,7 +61,7 @@ parse_notification(S,Passwd) ->
     case recv_sl(S) of
 	{[$N,$T,$F,$Y|T],_} ->
 	    User = parse_user(T),
-	    answer_greeting(S#sk{user=User},Passwd,T);
+	    send_login(S#sk{user=User},Passwd,T);
 	_ ->
 	    error_msg("epop_client: Wrong connect message !~n"),
 	    exit(wrong_connect)
@@ -97,6 +97,13 @@ do_connect(User,Passwd,Options) when is_list(User), is_list(Passwd), is_list(Opt
     end.
 
 do_connect_proto(S) ->
+    case S#sk.encryption of
+        Enc when Enc==ssl; Enc==tls ->
+            ssl:start();
+        _ ->
+            ok
+    end,
+
     case S#sk.ssl of
         false ->
             %% default POP3
@@ -104,8 +111,6 @@ do_connect_proto(S) ->
             gen_tcp:connect(S#sk.addr, S#sk.port, Opts);
         true ->
             %% handle POP3 over SSL
-%            application:start(ssl),
-			ssl:start(),
             Opts = [{packet,raw}, {reuseaddr,true}, {active,false}],
             ssl:connect(S#sk.addr, S#sk.port, Opts)
     end.
@@ -123,13 +128,38 @@ get_greeting(S,Passwd) ->
     	    {error,T}
     end.
 
-answer_greeting(S,Passwd,T) when S#sk.apop==false ->
+answer_greeting(S, Passwd, T) ->
+    case S#sk.encryption of
+        tls ->
+            case start_tls(S) of
+                {ok,S2} ->
+                    send_login(S2,Passwd,T);
+                {error,_}=Error ->
+                    Error
+            end;
+        _ ->
+            send_login(S,Passwd,T)
+    end.
+
+start_tls(S) ->
+    deliver(S, "STLS"),
+    if_snoop(S,client,"STLS"),
+    get_ok(S),
+    if_snoop(S,sender,"+OK"),
+    case ssl:connect(S#sk.sockfd, [{packet,raw}, {active,false}]) of
+        {ok,SSLSock} ->
+            {ok, S#sk{ssl=true, sockfd=SSLSock}};
+        {error,_}=Error ->
+            Error
+    end.
+
+send_login(S,Passwd,T) when S#sk.apop==false ->
     if_snoop(S,sender,"+OK" ++ T),
     Msg = "USER " ++ S#sk.user,
     deliver(S,Msg),
     if_snoop(S,client,Msg),
     send_passwd(S,Passwd);
-answer_greeting(S,Passwd,T) when S#sk.apop==true ->
+send_login(S,Passwd,T) when S#sk.apop==true ->
     if_snoop(S,sender,"+OK" ++ T),
     TS = parse_banner_timestamp(T),
     Digest = epop_md5:string(TS ++ Passwd),
@@ -407,7 +437,13 @@ who(client) -> "C".
 
 init_session(User,Options) ->
     {Uid,Adr} = user_address(User),
-    init_options(Uid,Adr,Options).
+    S = init_options(Uid,Adr,Options),
+    InitialSSL = case S#sk.encryption of
+                     tcp -> false;
+                     tls -> false;
+                     ssl -> true
+                 end,
+    S#sk{ssl=InitialSSL}.
 
 init_options(Uid,Adr,Options) ->
     set_options(Options,#sk{user=Uid,addr=Adr}).
@@ -433,7 +469,11 @@ set_options([apop|T],S) ->
 set_options([upass|T],S) ->
     set_options(T,S#sk{apop=false});
 set_options([ssl|T],S) ->
-    set_options(T,S#sk{ssl=true});
+    % TODO: Ought to warn about tls/ssl conflict
+    set_options(T,S#sk{encryption=ssl});
+set_options([tls|T],S) ->
+    % TODO: Ought to warn about tls/ssl conflict
+    set_options(T,S#sk{encryption=tls});
 set_options([{addr,Addr}|T], S) ->
     set_options(T,S#sk{addr=Addr});
 set_options([{user,User}|T], S) ->
