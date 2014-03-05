@@ -4,7 +4,7 @@
 %%%---------------------------------------------------------------------
 %%% File    : epop_client.erl
 %%% Created : 10 Sep 2008 by harish.mallipeddi@gmail.com
-%%% Function: POP3 client (with SSL support)
+%%% Function: POP3 client (with SSL and TLS support)
 %%% ====================================================================
 %%% The contents of this file are subject to the Erlang Public License
 %%% License, Version 1.1, (the "License"); you may not use this file
@@ -25,7 +25,7 @@
 %%% Contributor(s):
 %%%     11 Mar 1998 by tobbe@serc.rmit.edu.au
 %%%     10 Sep 2008 by harish.mallipeddi@gmail.com (added support for SSL).
-%%%
+%%%     05 Mar 2014 by eriksoe@gmail.com (added support for TLS).
 %%%---------------------------------------------------------------------
 
 -vc('$Id$ ').
