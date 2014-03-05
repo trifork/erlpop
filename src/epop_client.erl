@@ -93,15 +93,16 @@ do_connect(User,Passwd,Options) when is_list(User), is_list(Passwd), is_list(Opt
     S = init_session(User,Options),
     case do_connect_proto(S) of
         {ok,Sock} ->
+            S2 = S#sk{sockfd=Sock},
             %% Ensure to close the socket in all error cases:
-            try get_greeting(S#sk{sockfd=Sock},Passwd) of
+            try get_greeting(S2,Passwd) of
                 {ok, _}=Result ->
                     Result;
                 {error,_}=Result ->
-                    do_close(S),
+                    do_close(S2),
                     Result
             catch Cls:Error ->
-                    do_close(S),
+                    do_close(S2),
                     erlang:raise(Cls, Error, erlang:get_stacktrace())
             end;
         _ ->
