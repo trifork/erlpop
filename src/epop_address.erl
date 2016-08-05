@@ -33,7 +33,7 @@
 -type address_group() :: {group, GroupName::string(), [named_address()]}.
 
 %%% Flatten address list by expanding groups.
--spec expand_groups/1 :: ([named_address() | address_group()]) -> [named_address()].
+-spec expand_groups([named_address() | address_group()]) -> [named_address()].
 expand_groups(Items) when is_list(Items) ->
     lists:flatmap(fun({group, _GroupName, L}) -> L;
                      ({_,_}=Addr)             -> [Addr]
@@ -41,7 +41,7 @@ expand_groups(Items) when is_list(Items) ->
                   Items).
 
 %%% Parse an address-list according to RFC5322.
--spec parse_list/1 :: (string()) -> [named_address() | address_group()].
+-spec parse_list(string()) -> [named_address() | address_group()].
 parse_list(S) ->
     try {ok, address_list(tokenize(S), [])}
     catch
