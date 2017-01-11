@@ -41,7 +41,7 @@ expand_groups(Items) when is_list(Items) ->
                   Items).
 
 %%% Parse an address-list according to RFC5322.
--spec parse_list(string()) -> [named_address() | address_group()].
+-spec parse_list(string()) -> {ok, [named_address() | address_group()]} | {error, string()}.
 parse_list(S) ->
     try {ok, address_list(tokenize(S), [])}
     catch
@@ -113,10 +113,7 @@ address([$: | S], NameAcc) ->
     %% Named group
     %% TODO: Handle groups better
     GroupName = acc_to_str(pop_ws(NameAcc)),
-    case address_list_in_group(skip_ws(S)) of
-        {group_end, Addrs, S2} -> ok;
-        Addrs -> S2="", ok % ";" was missing
-    end,
+    {group_end, Addrs, S2} = address_list_in_group(skip_ws(S)),
     {{group, GroupName, Addrs}, S2};
 address([$; | S], []) ->
     %% End of group.
