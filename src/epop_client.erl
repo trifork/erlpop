@@ -29,12 +29,12 @@
 %%%---------------------------------------------------------------------
 
 -vc('$Id$ ').
--export([connect/2,connect/3,stat/1,scan/1,scan/2,retrieve/2,delete/2,
+-export([connect/2,connect/3,stat/1,scan/1,scan/2,retrieve/2,bin_retrieve/2,delete/2,
 	 reset/1,quit/1,uidl/1,uidl/2,top/3]).
 -export([notify/3,accept/2,accept/3]).
 
 -import(error_logger,[error_msg/1]).
--import(epop_client_utils,[recv_sl/1,recv_ml/1,recv_ml_on_ok/1,tokenize/1]).
+-import(epop_client_utils,[recv_sl/1,recv_ml/1,recv_ml_on_ok/1,tokenize/1,bin_recv_ml_on_ok/1]).
 
 -include("epop_client.hrl").
 
@@ -236,6 +236,12 @@ retrieve(S,MsgNum) when is_integer(MsgNum) ->
     if_snoop(S,client,Msg),
     get_retrieve(S).
 
+bin_retrieve(S,MsgNum) when is_integer(MsgNum) -> 
+    Msg = "RETR " ++ integer_to_list(MsgNum),
+    deliver(S,Msg),
+    if_snoop(S,client,Msg),
+    bin_get_retrieve(S).
+
 top(S,MsgNum,Lines) when is_integer(MsgNum), is_integer(Lines) -> 
     Msg = "TOP " ++ integer_to_list(MsgNum) ++ " " ++ integer_to_list(Lines),
     deliver(S,Msg),
@@ -259,12 +265,35 @@ get_retrieve(S) ->
 	    Else
     end.
 
+bin_get_retrieve(S) ->
+    case bin_recv_ml_on_ok(S) of
+	{<<"+OK", T/binary>>,_} ->
+	    {Line,Ls} = bin_get_line(<<"+OK", T/binary>>),
+	    if (S#sk.snoop==true) ->
+		    if_snoop(S,sender,Line),
+		    io:fwrite("~s~n",[Ls]);
+	       true -> true
+	    end,
+	    {ok,Ls};
+	{[$-,$E,$R,$R|T],_} ->
+	    if_snoop(S,sender,"-ERR" ++ T),
+	    {error,T};
+	Else ->
+	    Else
+    end.
+
 get_line(Str) -> 
     F = fun($\n) -> false;
 	   (_)   -> true
 	end,
     {Line,[_Nl|Rest]} = lists:splitwith(F,Str),
     {Line,Rest}.
+
+bin_get_line(Bin) ->
+    case binary:match(Bin, <<"\n">>) of
+      {Start, Length} -> {binary:part(Bin, 0, Start), binary:part(Bin, Start + Length, byte_size(Bin) - Start - Length)};
+      nomatch -> {Bin,<< >>}
+    end.
 
 %% -------------------
 %% Send a uidl request

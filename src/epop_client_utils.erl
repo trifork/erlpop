@@ -20,9 +20,11 @@
 %%%---------------------------------------------------------------------
 
 -export([recv_sl/1,recv_ml/1,recv_ml_on_ok/1,tokenize/1]).
+-export([bin_recv_ml_on_ok/1]).
 
 -define(CR, 13).
 -define(LF, 10).
+-define(CHUNK_SIZE,33000).
 
 -include("epop_client.hrl").
 
@@ -31,12 +33,21 @@
 %% it as a multi-line response. Otherwise as a single-line.
 %% ---------------------------------------------------------
 
+
 recv_ml_on_ok(S) ->
     case recv_3_chars(S) of
 	    [$+,$O,$K|T] ->
 	        recv_ml(S,[$+,$O,$K|T]);
 	    Else ->
 	        recv_sl(S,Else)
+    end.
+
+bin_recv_ml_on_ok(S) ->
+    case recv_3_chars(S) of
+	    [$+,$O,$K|T] ->
+	        bin_recv_ml(S,[$+,$O,$K|T]);
+	    Else ->
+	        bin_recv_sl(S,Else)
     end.
 
 recv_3_chars(S) -> recv_3_chars(S,recv(S)).
@@ -52,34 +63,53 @@ recv_ml(S) ->
     recv_ml(S,[]).
 
 recv_ml(S,Cc) ->
-    rml(1,S,Cc,[]).
+    rml(1,S,Cc,[],?CHUNK_SIZE, []).
+
+bin_recv_ml(S,Cc) ->
+    rml(1,S,Cc,[],?CHUNK_SIZE, << >>).
 
 %% A simple state-event machine to handle the byte stuffing
 %% of the termination octet. See also page.2 in the RFC-1939.
 %% Since we are using a raw socket we are using this
 %% continuation based style of programming.
+%% 
+bin_append_reverse_list(Bin,Mline) when is_binary(Bin) -> 
+  BinAdd = erlang:list_to_binary(lists:reverse(Mline)),
+  << Bin/binary, BinAdd/binary >>;
 
-rml(1,S,[?CR|T],Mline)        -> rml(2,S,T,[?CR|Mline]);     % goto next state
-rml(1,S,[?LF|T],Mline)        -> rml(3,S,T,[?LF|Mline]);     % goto next state
-rml(1,S,[H|T],Mline)          -> rml(1,S,T,[H|Mline]);       % stay
+bin_append_reverse_list(NoBin,_Mline) -> NoBin.
 
-rml(2,S,[?LF|T],Mline)        -> rml(3,S,T,[?LF|Mline]);     % goto next state
-rml(2,S,[H|T],Mline)          -> rml(1,S,[H|T],Mline);       % continue
+empty_list_if_append(Bin,_Mline) when is_binary(Bin) -> [];
+empty_list_if_append(_,Mline) -> Mline.
 
-rml(3,S,[$.|T],Mline)         -> rml(4,S,T,[$.|Mline]);      % goto next state
-rml(3,S,[H|T],Mline)          -> rml(1,S,[H|T],Mline);       % continue
+rml_ready(Bin,Mline) when is_binary(Bin) -> 
+  bin_append_reverse_list(Bin,Mline);
+rml_ready(_NoBin,Mline) -> 
+  lists:reverse(Mline).
 
-rml(4,S,[?CR|T],Mline)        -> rml(5,S,T,[?CR|Mline]);     % goto next state
-rml(4,S,[?LF|T],Mline)        -> rml(6,S,T,[?LF|Mline]);     % goto next state
-rml(4,S,[H|T],[$.|Mline])     -> rml(1,S,[H|T],Mline);       % continue
+rml(S1,S2,T,Mline,0,Bin)            -> rml(S1,S2,T,empty_list_if_append(Bin,Mline),?CHUNK_SIZE,bin_append_reverse_list(Bin,Mline));
 
-rml(5,S,[?LF|T],Mline)        -> rml(6,S,T,[?LF|Mline]);     % goto next state
-rml(5,S,[H|T],[$.|Mline])     -> rml(1,S,[H|T],Mline);       % (de-)byte stuff
+rml(1,S,[?CR|T],Mline,C,Bin)        -> rml(2,S,T,[?CR|Mline],C-1,Bin);     % goto next state
+rml(1,S,[?LF|T],Mline,C,Bin)        -> rml(3,S,T,[?LF|Mline],C-1,Bin);     % goto next state
+rml(1,S,[H|T],Mline,C,Bin)          -> rml(1,S,T,[H|Mline],C-1,Bin);       % stay
 
-rml(6,_,T,[?LF,?CR,$.|Mline]) -> {lists:reverse(Mline),T};   % accept
-rml(6,_,T,[?LF,$.|Mline])     -> {lists:reverse(Mline),T};   % accept
+rml(2,S,[?LF|T],Mline,C,Bin)        -> rml(3,S,T,[?LF|Mline],C-1,Bin);     % goto next state
+rml(2,S,[H|T],Mline,C,Bin)          -> rml(1,S,[H|T],Mline,C,Bin);         % continue
 
-rml(State,S,[],Mline)         -> rml(State,S,recv(S),Mline). % get more
+rml(3,S,[$.|T],Mline,C,Bin)         -> rml(4,S,T,[$.|Mline],C-1,Bin);      % goto next state
+rml(3,S,[H|T],Mline,C,Bin)          -> rml(1,S,[H|T],Mline,C,Bin);         % continue
+
+rml(4,S,[?CR|T],Mline,C,Bin)        -> rml(5,S,T,[?CR|Mline],C-1,Bin);     % goto next state
+rml(4,S,[?LF|T],Mline,C,Bin)        -> rml(6,S,T,[?LF|Mline],C-1,Bin);     % goto next state
+rml(4,S,[H|T],[$.|Mline],C,Bin)     -> rml(1,S,[H|T],Mline,C,Bin);         % continue
+
+rml(5,S,[?LF|T],Mline,C,Bin)        -> rml(6,S,T,[?LF|Mline],C-1,Bin);     % goto next state
+rml(5,S,[H|T],[$.|Mline],C,Bin)     -> rml(1,S,[H|T],Mline,C-1,Bin);       % (de-)byte stuff
+
+rml(6,_,T,[?LF,?CR,$.|Mline],_C,Bin) -> {rml_ready(Bin,Mline),T};          % accept
+rml(6,_,T,[?LF,$.|Mline],_C,Bin)     -> {rml_ready(Bin,Mline),T};          % accept
+
+rml(State,S,[],Mline,C,Bin)         -> rml(State,S,recv(S),Mline,C,Bin).   % get more
 
 
 %% -----------------------------------------------------
@@ -93,6 +123,10 @@ recv_sl(S) ->
 
 recv_sl(S,Cc) ->
     complete_sl(S,Cc,[]).
+
+bin_recv_sl(S,CC) ->
+    {L,T} = recv_sl(S,CC),
+    {erlang:list_to_binary(L),T}.
 
 complete_sl(S,[?CR|T],Line) ->
     complete_sl_lf(S,T,[?CR|Line]);

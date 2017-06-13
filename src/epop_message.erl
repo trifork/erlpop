@@ -18,7 +18,7 @@
 %%%
 %%%---------------------------------------------------------------------
 
--export([parse/1, find_header/2]).
+-export([parse/1, find_header/2, bin_parse/1]).
 
 parse(Message) ->
     Boundary = string:str(Message, "\r\n\r\n"),
@@ -27,6 +27,13 @@ parse(Message) ->
     Body = string:substr(Message, Boundary + 4),
     Headers = parse_headers(Header),
     {message, Headers, Body}.
+
+bin_parse(Message) ->
+    case re:split(Message, <<"\r\n\r\n">>, [{parts, 2}]) of
+      [Header, Body] -> Headers = bin_parse_headers(Header),
+                        {message, Headers, Body}; 
+      [_NotFound] -> error({parse_failed, end_of_header_not_found})
+    end.
 
 parse_headers(Header) ->
     %% do "unfolding" first
@@ -38,12 +45,30 @@ parse_headers(Header) ->
     %io:format("raw headers = ~n~p~n", [RawHeaders]),
     lists:map(fun parse_header/1, RawHeaders).
 
+bin_parse_headers(Header) ->
+    %% do "unfolding" first
+    %% read more about unfolding long header fields here - http://www.faqs.org/rfcs/rfc2822.html
+    %% "Unfolding is accomplished by simply removing any CRLF
+    %% that is immediately followed by WSP"
+    UnfoldedHeader = re:replace(Header, "\r\n(?=[ \t])","", [{return,binary},global]),
+    RawHeaders = re:split(UnfoldedHeader, "\r\n", [{return,binary}]),
+    %io:format("raw headers = ~n~p~n", [RawHeaders]),
+    lists:map(fun bin_parse_header/1, RawHeaders).
+
 parse_header(RawHeader) ->
     Boundary = string:str(RawHeader, ":"),
     Boundary>0 orelse error({parse_failed, end_of_header_name_found}),
     HeaderName = string:strip(string:substr(RawHeader, 1, Boundary - 1)),
     HeaderVal = string:strip(string:substr(RawHeader, Boundary + 1)),
     {header, HeaderName, HeaderVal}.
+
+bin_parse_header(RawHeader) ->
+    case re:split(RawHeader, <<"\s*:\s*">>, [{parts, 2}]) of
+      [HeaderName, HeaderVal] -> {header, 
+                                  re:replace(HeaderName, "^\\s+", "",[{return,binary}]),
+                                  re:replace(HeaderVal,  "\\s+$", "",[{return,binary}])};
+      [_NotFound] -> error({parse_failed, end_of_header_name_found})
+    end.
 
 %% find the header given the name from the headers list
 find_header([], _) ->
