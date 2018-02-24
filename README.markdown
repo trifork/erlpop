@@ -3,12 +3,12 @@ erlpop
 
 `erlpop` is a POP3 client library for Erlang. It is derived from the original "epop" Erlang package which includes both a POP server and client.
 
-epop Author: *Torbjörn Törnkvist* when working at Software Engineering Research Center, SERC, in Melbourne
+epop author: *Torbjörn Törnkvist* when working at Software Engineering Research Center, SERC, in Melbourne
 
 ### Changes ###
     2017-06-13 Nico Hoogervorst  - Added 'bin_retrieve' get binary data instead of character list to reduce memory consumption
     2016-08-05 Nico Hoogervorst  - Erlang V8.0.2 / OTP 19 upgrade
-    2013-04-17 Erik Søe Sørensen - Erlang/OTP upgrade
+    2013-04-17 Erik Søe Sørensen - Erlang/OTP 15 upgrade, "TOP" fix; rebarify
     2013-01-31 Wes James         - update ssl start command to current erlang api 
     2009-10-06 Harish Mallipeddi - Added `epop_message` to parse retrieved email messages.
     2008-09-10 Harish Mallipeddi - Added SSL support (epop_client can be now be used with services like GMail which require SSL).
