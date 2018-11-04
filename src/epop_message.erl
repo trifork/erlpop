@@ -71,9 +71,9 @@ bin_parse_header(RawHeader) ->
     end.
 
 %% find the header given the name from the headers list
-find_header([], _) ->
-    {error, not_found};
-find_header([{header, HeaderName, HeaderValue}|_Rest], Key) when HeaderName =:= Key ->
-    {ok, HeaderValue};
-find_header([_|Rest], Key) ->
-    find_header(Rest, Key).
+find_header(HeaderList, HeaderName) ->
+    case lists:dropwhile(fun({header,Key,_Value}) -> 
+         string:lowercase(HeaderName) =/= string:lowercase(Key) end, HeaderList) of
+      [] -> {error, not_found};
+      [{header,_Key,Value}| _] -> {ok, Value}
+    end.
