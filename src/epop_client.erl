@@ -105,7 +105,7 @@ do_connect_proto(S) ->
         true ->
             %% handle POP3 over SSL
 %            application:start(ssl),
-			ssl:start(),
+            ok = ssl:start(),
             Opts = [{packet,raw}, {reuseaddr,true}, {active,false}],
             ssl:connect(S#sk.addr, S#sk.port, Opts)
     end.
@@ -126,7 +126,7 @@ get_greeting(S,Passwd) ->
 answer_greeting(S,Passwd,T) when S#sk.apop==false ->
     if_snoop(S,sender,"+OK" ++ T),
     Msg = "USER " ++ S#sk.user,
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     send_passwd(S,Passwd);
 answer_greeting(S,Passwd,T) when S#sk.apop==true ->
@@ -134,7 +134,7 @@ answer_greeting(S,Passwd,T) when S#sk.apop==true ->
     TS = parse_banner_timestamp(T),
     Digest = epop_md5:string(TS ++ Passwd),
     Msg = "APOP " ++ S#sk.user ++ " " ++ Digest,
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_ok(S).
 
@@ -155,7 +155,7 @@ send_passwd(S,Passwd) ->
 	{[$+,$O,$K|T],_} ->
 	    if_snoop(S,sender,"+OK" ++ T),
 	    Msg = "PASS " ++ Passwd,
-	    deliver(S,Msg),
+	    ok = deliver(S,Msg),
 	    if_snoop(S,client,Msg),
 	    get_ok(S);
 	{[$-,$E,$R,$R|T],_} ->
@@ -169,7 +169,7 @@ send_passwd(S,Passwd) ->
 
 stat(S) ->
     Msg = "STAT",
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_stat(S).
 
@@ -194,7 +194,7 @@ scan(S,Num) when is_integer(Num) ->
     do_scan(S,"LIST " ++ integer_to_list(Num),false).
 
 do_scan(S,Msg,MultiLine) ->
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_scanlist(S,MultiLine).
 
@@ -232,19 +232,19 @@ scan_recv(SockFd,false) -> recv_sl(SockFd).
 
 retrieve(S,MsgNum) when is_integer(MsgNum) -> 
     Msg = "RETR " ++ integer_to_list(MsgNum),
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_retrieve(S).
 
 bin_retrieve(S,MsgNum) when is_integer(MsgNum) -> 
     Msg = "RETR " ++ integer_to_list(MsgNum),
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     bin_get_retrieve(S).
 
 top(S,MsgNum,Lines) when is_integer(MsgNum), is_integer(Lines) -> 
     Msg = "TOP " ++ integer_to_list(MsgNum) ++ " " ++ integer_to_list(Lines),
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_retrieve(S).
 
@@ -305,7 +305,7 @@ uidl(S,Num) when is_integer(Num) ->
     do_uidl(S,"UIDL " ++ integer_to_list(Num),false).
 
 do_uidl(S,Msg,MultiLine) ->
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_uidllist(S,MultiLine).
 
@@ -343,7 +343,7 @@ uidl_recv(SockFd,false) -> recv_sl(SockFd).
 
 delete(S,MsgNum) when is_integer(MsgNum) ->
     Msg = "DELE " ++ integer_to_list(MsgNum),
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     case get_ok(S) of
 	{ok,_} -> ok;
@@ -357,7 +357,7 @@ delete(S,MsgNum) when is_integer(MsgNum) ->
     
 reset(S) -> 
     Msg = "RSET",
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     case get_ok(S) of
 	{ok,_} -> ok;
@@ -370,7 +370,7 @@ reset(S) ->
 
 quit(S) -> 
     Msg = "QUIT",
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     Res = case get_ok(S) of
 	      {ok,_} -> ok;
@@ -391,7 +391,7 @@ notify(S,Host,PortNo) when is_list(Host), is_integer(PortNo) ->
     do_notify(S,"NTFY " ++ Host ++ " " ++ integer_to_list(PortNo)).
 
 do_notify(S,Msg) ->
-    deliver(S,Msg),
+    ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_ok(S).
 
