@@ -1,12 +1,15 @@
-{application, pop3client,
+{application, erlpop,
  [
   {description, "POP3 client for Erlang with SSL support"},
-  {licenses, "Apache 2.0"},
-  {vsn, "1.2"},
+  {vsn, "1.2.0"},
+  {pkg_name, "pop3client"},
+  {modules, []},
   {registered, []},
   {applications, [kernel,
                   stdlib
                   % Optionally: ssl if SSL support is needed.
                  ]},
-  {env, []}
+  {maintainers, ["Nico Hoogervorst"]},
+  {links,[{"Github","https://github.com/nico-amsterdam/erlpop"}]},
+  {licenses, ["Apache 2.0"]}
  ]}.
