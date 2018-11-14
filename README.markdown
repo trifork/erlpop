@@ -9,6 +9,8 @@ epop author: [*Torbjörn Törnkvist*](https://web.archive.org/web/19990202132504
 
 [epop 2.9 documentation](https://nico-amsterdam.github.io/erlpop/epop_client.html)
 
+[RFC 1939](https://www.ietf.org/rfc/rfc1939.txt)
+
 ### Changes ###
     2017-11-09 Nico Hoogervorst  - v1.2, case-insensitive header lookup. Rename to pop3client for unique name in hex.pm
     2017-06-13 Nico Hoogervorst  - Added 'bin_retrieve' get binary data instead of character list to reduce memory consumption
