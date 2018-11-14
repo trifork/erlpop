@@ -1,0 +1,287 @@
+<HTML>
+<HEAD>
+<!-- refpage -->
+<TITLE>Epop - A POP3 client/server package</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF">
+<CENTER>
+
+
+<A HREF="http://www.ericsson.se/erlang/"><IMG BORDER=0 ALT="[Erlang Systems]" SRC="min_head.gif"></A>
+<H1>Epop - A POP3 client/server package</H1>
+</CENTER>
+<H3>MODULE</H3>
+<UL>
+epop_client</UL>
+<H3>MODULE SUMMARY</H3>
+<UL>
+The Epop POP3 client</UL>
+<H3>DESCRIPTION</H3>
+<UL>
+<P>This is an implementation of a POP3 client.
+It implements a sufficient subset of RFC-1939 to 
+be useful in the context of the Epop package.
+With this module it is possible to do: stat, scan,
+retrieve, delete, reset and quit, as well as the
+commands uidl and top. It is possible
+to specify that the APOP authentication scheme
+should be used.
+<P> This module also supports the 
+<A TARGET="_top" HREF="http://www.serc.rmit.edu.au/~tobbe/epop/RFC-pop3-notification.txt">notification extension</A>
+which is reflected with the functions: accept/2, accept/3 and
+notify/3.
+<P>Important information about the operations are written to 
+the error_handler module, which in the context of Epop will
+lead to a log-file
+</UL>
+<H3>EXPORTS</H3>
+<P><A NAME="connect%2"><STRONG><CODE>connect(UserAddr, Passwd) -&#62; Result</CODE></STRONG></A><BR>
+<A NAME="connect%3"><STRONG><CODE>connect(UserAddr, Passwd, Options) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>UserAddr = string()</CODE></STRONG><BR>
+<STRONG><CODE>Passwd = string()</CODE></STRONG><BR>
+<STRONG><CODE>Options = list( {port,Port} | {snoop,Bool} | apop )</CODE></STRONG><BR>
+<STRONG><CODE>Port = integer()</CODE></STRONG><BR>
+<STRONG><CODE>Bool = true | false</CODE></STRONG><BR>
+<STRONG><CODE>Result = {ok,SessionKey} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Setup the connection to the POP3 server specified in UserAddr.
+This argument should consist of a string: PopId@PopHost , e.g
+''pop1234@my.mail.provider''
+<P>The Passwd argument specifies the secret password tp be used.
+If APOP hasn't been specified among the Options, then this
+password will be sent in clear text. However, if APOP is
+         specified, then this password is used in the computation
+of the APOP digest message as described in RFC-1939.
+         </UL>
+<P><A NAME="accept%2"><STRONG><CODE>accept(Sock, Passwd) -&#62; Result</CODE></STRONG></A><BR>
+<A NAME="accept%3"><STRONG><CODE>accept(Sock, Passwd, Options) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>Sock = a listen socket</CODE></STRONG><BR>
+<STRONG><CODE>Passwd = string()</CODE></STRONG><BR>
+<STRONG><CODE>Options = list( {snoop,Bool} | apop )</CODE></STRONG><BR>
+<STRONG><CODE>Result = {ok,SessionKey} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P> This function is used when we want to be able to accept
+a notification from a POP3 server.
+<P> The Passwd argument specifies the secret password tp be used.
+If APOP hasn't been specified among the Options, then this
+password will be sent in clear text. However, if APOP is
+specified, then this password is used in the computation
+of the APOP digest message as described in RFC-1939.
+</UL>
+<P><A NAME="stat%1"><STRONG><CODE>stat(SessionKey) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>Result = {ok,Answer} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+<STRONG><CODE>Answer = tuple(NumOfMsgs, TotalSize)</CODE></STRONG><BR>
+<STRONG><CODE>NumOfMsgs = integer()</CODE></STRONG><BR>
+<STRONG><CODE>TotalSize = integer()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Send the STAT command to the POP3 server of this session.
+         Returns a tuple with the number of stored messages and the
+total size of the maildrop in bytes.
+</UL>
+<P><A NAME="scan%1"><STRONG><CODE>scan(SessionKey) -&#62; MultiResult</CODE></STRONG></A><BR>
+<A NAME="scan%2"><STRONG><CODE>scan(SessionKey, MsgNumber) -&#62; SingleResult</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>SingleResult = {ok,SingleAnswer} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>MultiResult = {ok,MultiAnswer} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+<STRONG><CODE>SingleAnswer = tuple(MsgNumber, MsgSize)</CODE></STRONG><BR>
+<STRONG><CODE>MultiAnswer = list(SingleAnswer)</CODE></STRONG><BR>
+<STRONG><CODE>MsgNumber = integer()</CODE></STRONG><BR>
+<STRONG><CODE>MsgSize = integer()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Send the SCAN command to the POP3 server of this session.
+Either we can specifiy a certain message number, in which
+case we will get back a tuple with the size of the specified
+message, or we can omit to specify a certain number which 
+         will return a list of tuples representing all messages
+stored at the server. The above of course assumes a successful 
+operation, otherwise we will get an error reason instead.
+<P><TABLE CELLPADDING=4>
+<TR>
+<TD VALIGN=TOP><IMG ALT="Note!" SRC="note.gif"></TD>
+<TD>
+<P>Messages marked as deleted are not listed.</TD>
+</TR>
+</TABLE>
+</UL>
+<P><A NAME="uidl%1"><STRONG><CODE>uidl(SessionKey) -&#62; MultiResult</CODE></STRONG></A><BR>
+<A NAME="uidl%2"><STRONG><CODE>uidl(SessionKey, MsgNumber) -&#62; SingleResult</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>SingleResult = {ok,SingleAnswer} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>MultiResult = {ok,MultiAnswer} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+<STRONG><CODE>SingleAnswer = tuple(MsgNumber, MsgId)</CODE></STRONG><BR>
+<STRONG><CODE>MultiAnswer = list(SingleAnswer)</CODE></STRONG><BR>
+<STRONG><CODE>MsgNumber = integer()</CODE></STRONG><BR>
+<STRONG><CODE>MsgId = a unique-id, see RFC-1939, p.11</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Send the UIDL command to the POP3 server of this session.
+Either we can specifiy a certain message number, in which
+case we will get back a tuple with the unique identification 
+         of the specified message, or we can omit to specify a certain 
+         number which will return a list of tuples representing all messages
+stored at the server. The above of course assumes a successful 
+operation, otherwise we will get an error reason instead.
+<P><TABLE CELLPADDING=4>
+<TR>
+<TD VALIGN=TOP><IMG ALT="Note!" SRC="note.gif"></TD>
+<TD>
+<P>Messages marked as deleted are not listed.</TD>
+</TR>
+</TABLE>
+</UL>
+<P><A NAME="retrieve%2"><STRONG><CODE>retrieve(SessionKey, MsgNumber) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>MsgNumber = integer()</CODE></STRONG><BR>
+<STRONG><CODE>Result = {ok,Message} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Message = string()</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Send the RETR command to the POP3 server of this session.
+Return the specified message or an error reason.
+</UL>
+<P><A NAME="top%3"><STRONG><CODE>top(SessionKey, MsgNumber, Lines) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>MsgNumber = integer()</CODE></STRONG><BR>
+<STRONG><CODE>Lines = integer()</CODE></STRONG><BR>
+<STRONG><CODE>Result = {ok,Message} | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Message = string()</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Send the TOP command to the POP3 server of this session.
+        If the number of lines in the message is lesser than what is
+        specified in the Lines argument, the whole message is returned.
+        Otherwise, only the first number of Lines in the message will be
+        returned. A third alternative is to return an error reason.
+</UL>
+<P><A NAME="delete%2"><STRONG><CODE>delete(SessionKey, MsgNumber) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>MsgNumber = integer()</CODE></STRONG><BR>
+<STRONG><CODE>Result = ok | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Message = string()</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Send the DELE command to the POP3 server of this session.
+Return ok at success or an error reason. 
+<P><TABLE CELLPADDING=4>
+<TR>
+<TD VALIGN=TOP><IMG ALT="Note!" SRC="note.gif"></TD>
+<TD>
+<P>The message won't actually be deleted until the
+         QUIT command terminates the session. The deletion
+of messages can be undone by using the reset function.
+         </TD>
+</TR>
+</TABLE>
+</UL>
+<P><A NAME="reset%1"><STRONG><CODE>reset(SessionKey) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>Result = ok | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Send the RSET command to the POP3 server of this session.
+         Order the POP3 server to unmark all messages currently
+marked for deletion.
+<P>If the notification extension is turned on at the POP3 server,
+        it will also cause any order for notification to be cleared.
+        </UL>
+<P><A NAME="quit%1"><STRONG><CODE>quit(SessionKey) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>Result = ok | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>Send the QUIT command to the POP3 server of this session.
+         Orders the POP3 server to terminate the session and
+closes the connection to the POP3 server.
+<P>All messages earlier marked for deletion will be
+deleted by the server.</UL>
+<P><A NAME="notify%3"><STRONG><CODE>notify(SessionKey, HostName, PortNo) -&#62; Result</CODE></STRONG></A><BR>
+<P><UL>Types:
+<UL>
+<STRONG><CODE>SessionKey = opaque()</CODE></STRONG><BR>
+<STRONG><CODE>HostName = string()</CODE></STRONG><BR>
+<STRONG><CODE>PortNo = integer()</CODE></STRONG><BR>
+<STRONG><CODE>Result = ok | {error,Reason}</CODE></STRONG><BR>
+<STRONG><CODE>Reason = atom()</CODE></STRONG><BR>
+</UL>
+</UL>
+<UL>
+<P>     Send the NTFY command to the POP3 server of this session.
+        Return ok at success or an error reason. 
+<P><TABLE CELLPADDING=4>
+<TR>
+<TD VALIGN=TOP><IMG ALT="Note!" SRC="note.gif"></TD>
+<TD>
+<P>     The order for notification will not be activated until
+        the QUIT command has terminated the session.
+        The order for notification can be undone by using the reset function.
+        </TD>
+</TR>
+</TABLE>
+</UL>
+<H3>More info about POP3</H3>
+<UL>
+<P>Check out RFC-1939.
+<P> The notification extension made to POP3 is described in
+<A TARGET="_top" HREF="http://www.serc.rmit.edu.au/~tobbe/epop/RFC-pop3-notification.txt">RFC-pop3-notification.txt</A>.
+</UL>
+<H3>AUTHORS</H3>
+<UL>
+T.T&#246;rnkvist - tobbe@cslab.ericsson.se<BR>
+</UL>
+<CENTER>
+<HR>
+<FONT SIZE=-1>
+Copyright &copy; 1991-97
+<A HREF="http://www.ericsson.se">Ericsson Telecom AB</A><BR>
+<!--#include virtual="/ssi/otp_footer.html"-->
+</FONT>
+</CENTER>
+</BODY>
+</HTML>
