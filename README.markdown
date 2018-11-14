@@ -3,7 +3,7 @@ erlpop
 
 POP3 client library for Erlang. It is derived from the original "epop" Erlang package which includes both a POP server and client.
 
-epop author: *Torbjörn Törnkvist* when working at Software Engineering Research Center, SERC, in Melbourne
+epop author: [*Torbjörn Törnkvist*](https://web.archive.org/web/19990202132504/http://www.serc.rmit.edu.au/~tobbe) when working at Software Engineering Research Center, SERC, in Melbourne
 
 ### Changes ###
     2017-11-09 Nico Hoogervorst  - v1.2, case-insensitive header lookup. Rename to pop3client for unique name in hex.pm
