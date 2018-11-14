@@ -5,6 +5,10 @@ POP3 client library for Erlang. It is derived from the original "epop" Erlang pa
 
 epop author: [*Torbjörn Törnkvist*](https://web.archive.org/web/19990202132504/http://www.serc.rmit.edu.au/~tobbe) when working at Software Engineering Research Center, SERC, in Melbourne
 
+### Documentation ###
+
+[epop 2.9 documentation](https://nico-amsterdam.github.io/erlpop/epop_client.html)
+
 ### Changes ###
     2017-11-09 Nico Hoogervorst  - v1.2, case-insensitive header lookup. Rename to pop3client for unique name in hex.pm
     2017-06-13 Nico Hoogervorst  - Added 'bin_retrieve' get binary data instead of character list to reduce memory consumption
