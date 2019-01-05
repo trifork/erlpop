@@ -37,7 +37,7 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
     3> {ok, {TotalCount, TotalSize}} = epop_client:stat(Client).
     4> {ok, MailContent} = epop_client:bin_retrieve(Client, 1).
     5> {message, HeaderList, BodyContent} = epop_message:bin_parse(MailContent).
-    6> {ok, Date} = epop_message:find_header(HeaderList, 
-    6> epop_client:quit(Client).
+    6> {ok, Date} = epop_message:find_header(HeaderList, <<"Date">>). 
+    7> epop_client:quit(Client).
     
   *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
