@@ -14,7 +14,7 @@ epop author: [*Torbjörn Törnkvist*](https://web.archive.org/web/19990202132504
 Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) is NOT supported.
 
 ### Changes ###
-    2018-11-09 Nico Hoogervorst  - v1.2, case-insensitive header lookup. Rename to pop3client for unique name in hex.pm
+    2018-11-09 Nico Hoogervorst  - v1.2, case-insensitive header lookup. Added erlpop as package 'pop3client' in hex.pm
     2017-06-13 Nico Hoogervorst  - Added 'bin_retrieve' get binary data instead of character list to reduce memory consumption
     2016-08-05 Nico Hoogervorst  - Erlang V8.0.2 / OTP 19 upgrade
     2013-04-18 Erik Søe Sørensen - Add an email address parser 'epop_address' (RFC5322)
