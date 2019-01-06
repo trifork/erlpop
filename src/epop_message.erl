@@ -6,20 +6,23 @@
 %%% Created : 17 Sep 2008 by harish.mallipeddi@gmail.com
 %%% Function: Utility to parse email messages
 %%% ====================================================================
-%%% The contents of this file are subject to the Erlang Public License
-%%% License, Version 1.1, (the "License"); you may not use this file
-%%% except in compliance with the License. You may obtain a copy of the
-%%% License at http://www.erlang.org/EPLICENSE
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
 %%%
-%%% Software distributed under the License is distributed on an "AS IS"
-%%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%%% the License for the specific language governing rights and limitations
-%%% under the License.
+%%%      http://www.apache.org/licenses/LICENSE-2.0
+%%%
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
 %%%
 %%%---------------------------------------------------------------------
 
 -export([parse/1, find_header/2, bin_parse/1]).
 
+-spec parse(string()) -> {message, list({header,string(),string()}), string()}.
 parse(Message) ->
     Boundary = string:str(Message, "\r\n\r\n"),
     Boundary>0 orelse error({parse_failed, end_of_header_not_found}),
@@ -28,6 +31,7 @@ parse(Message) ->
     Headers = parse_headers(Header),
     {message, Headers, Body}.
 
+-spec bin_parse(binary()) -> {message, list({header, binary(), binary()}), binary()}.
 bin_parse(Message) ->
     case re:split(Message, <<"\r\n\r\n">>, [{parts, 2}]) of
       [Header, Body] -> Headers = bin_parse_headers(Header),
@@ -35,6 +39,7 @@ bin_parse(Message) ->
       [_NotFound] -> error({parse_failed, end_of_header_not_found})
     end.
 
+-spec parse_headers(string()) -> list({header,string(),string()}).
 parse_headers(Header) ->
     %% do "unfolding" first
     %% read more about unfolding long header fields here - http://www.faqs.org/rfcs/rfc2822.html
@@ -45,6 +50,7 @@ parse_headers(Header) ->
     %io:format("raw headers = ~n~p~n", [RawHeaders]),
     lists:map(fun parse_header/1, RawHeaders).
 
+-spec bin_parse_headers(binary()) -> list({header, binary(), binary()}).
 bin_parse_headers(Header) ->
     %% do "unfolding" first
     %% read more about unfolding long header fields here - http://www.faqs.org/rfcs/rfc2822.html
@@ -55,6 +61,7 @@ bin_parse_headers(Header) ->
     %io:format("raw headers = ~n~p~n", [RawHeaders]),
     lists:map(fun bin_parse_header/1, RawHeaders).
 
+-spec parse_header(string()) -> {header,string(),string()}.
 parse_header(RawHeader) ->
     Boundary = string:str(RawHeader, ":"),
     Boundary>0 orelse error({parse_failed, end_of_header_name_found}),
@@ -62,6 +69,7 @@ parse_header(RawHeader) ->
     HeaderVal = string:strip(string:substr(RawHeader, Boundary + 1)),
     {header, HeaderName, HeaderVal}.
 
+-spec bin_parse_header(binary()) -> {header, binary(), binary()}.
 bin_parse_header(RawHeader) ->
     case re:split(RawHeader, <<"\s*:\s*">>, [{parts, 2}]) of
       [HeaderName, HeaderVal] -> {header, 
@@ -70,11 +78,17 @@ bin_parse_header(RawHeader) ->
       [_NotFound] -> error({parse_failed, end_of_header_name_found})
     end.
 
-%% find the header given the name from the headers list
+%% Find the first header given the name from the headers list.
+%%
+%% Notice that some headers like 'Received' and 'Return-Path' can occur multiple times,
+%% but this function will only return the first header.
+-spec find_header(list({header, string() | binary(), string() | binary()}), string() | binary()) -> {ok, string() | binary()} | {error, not_found}.
 find_header(HeaderList, HeaderName) ->
     LcHeaderName = string:lowercase(HeaderName),
-    case lists:dropwhile(fun({header,Key,_Value}) -> 
-         LcHeaderName =/= string:lowercase(Key) end, HeaderList) of
+    ContinueSearchFun = fun({header,Key,_Value}) -> 
+                            LcHeaderName =/= string:lowercase(Key)
+                        end, 
+    case lists:dropwhile(ContinueSearchFun, HeaderList) of
       [] -> {error, not_found};
       [{header,_Key,Value}| _] -> {ok, Value}
     end.
