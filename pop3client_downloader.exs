@@ -125,7 +125,7 @@ usage() ->
 
 %%%   Convert date from email header to a standard date format: YYYYMMDD_HHMMSS
 %%%   `datestr` - must be conform RFC 2822 date format
-convert_date([]) -> [];
+convert_date([]) -> "no-date";
 convert_date(DateStr) ->
      % Example of correctly formatted date: Tue, 14 Oct 2014 19:59:31 +0200
      % Sometimes the day of the week is missing in the date. Fix that:
@@ -146,11 +146,20 @@ convert_date(DateStr) ->
      {{Year, Month, Day}, {Hour, Minutes, Seconds}} = httpd_util:convert_request_date(DateWithDayAndLeadingZero),
      lists:flatten(io_lib:fwrite("~4..0B~2..0B~2..0B-~2..0B~2..0B~2..0B", [Year, Month, Day, Hour, Minutes, Seconds])).
 
+
+safe_convert_date(DateStr) ->
+     try
+        convert_date(DateStr)
+     catch
+        error:{badmatch, bad_date} -> "bad-date"
+     end.
+
+
 % charlist_retrieve(Client, Directory, Count, Max, Delete) when Count =< Max ->
 %  {ok, MailContent} = epop_client:retrieve(Client, Count),
 %  {message, HeaderList, _BodyContent } = epop_message:parse(MailContent),
 %  {ok, DateStr} = epop_message:find_header(HeaderList, "Date"),
-%  FileName = convert_date(DateStr) ++ "-" ++ integer_to_list(erlang:phash2(HeaderList, 999999)) ++ ".eml",
+%  FileName = safe_convert_date(DateStr) ++ "-" ++ integer_to_list(erlang:phash2(HeaderList, 999999)) ++ ".eml",
 %  {ok, Device} = file:open(Directory ++ "/" ++ FileName, [write, raw]),
 %  file:write(Device, MailContent),
 %  file:close(Device),
@@ -164,7 +173,7 @@ convert_date(DateStr) ->
 %   {ok, MailContent} = epop_client:bin_retrieve(Client, Count),
 %   {message, HeaderList, _BodyContent } = epop_message:bin_parse(MailContent),
 %   {ok, DateStr} = epop_message:find_header(HeaderList, <<"Date">>),
-%   FileName = convert_date(erlang:binary_to_list(DateStr)) ++ "-" ++ integer_to_list(erlang:phash2(HeaderList, 999999)) ++ ".eml",
+%   FileName = safe_convert_date(erlang:binary_to_list(DateStr)) ++ "-" ++ integer_to_list(erlang:phash2(HeaderList, 999999)) ++ ".eml",
 %   {ok, Device} = file:open(Directory ++ "/" ++ FileName, [write, raw]),
 %   file:write(Device, MailContent),
 %   file:close(Device),
@@ -180,7 +189,7 @@ stream_retrieve_headers(Acc, Headers, Date) ->
     {halt,   NewAcc} -> {ok, NewAcc, lists:reverse(Headers), Date};           % no more data, ready
     {"\r\n", NewAcc} -> {ok, NewAcc, lists:reverse(["\r\n"|Headers]), Date};  % empty line, ready with headers
     {Data,   NewAcc} -> Boundery = max(string:str(Data, ":"), 1),
-                        LcHeaderName = string:lowercase(string:trim(string:substr(Data, 1, Boundery -1))),
+                        LcHeaderName = string:lowercase(string:substr(Data, 1, Boundery -1)),
                         case LcHeaderName of
                           "date" -> NewDate = string:trim(string:substr(Data, Boundery + 1)),
                                     stream_retrieve_headers(NewAcc, [Data | Headers], NewDate);
@@ -200,7 +209,7 @@ stream_copy_to_file(Device, Acc) ->
 stream_retrieve(Client, Directory, Count, Max, Delete) when Count =< Max ->
   {ok, Acc} = epop_client:retrieve_start(Client, Count),
   {ok, NewAcc, Headers, DateStr} = stream_retrieve_headers(Acc, [], []),
-  FileName = convert_date(DateStr) ++ "-" ++ integer_to_list(erlang:phash2(Headers, 999999)) ++ ".eml",
+  FileName = safe_convert_date(DateStr) ++ "-" ++ integer_to_list(erlang:phash2(Headers, 999999)) ++ ".eml",
   {ok, Device} = file:open(Directory ++ "/" ++ FileName, [write, raw, delayed_write]),
   file:write(Device, Headers),
   ok = stream_copy_to_file(Device, NewAcc),
