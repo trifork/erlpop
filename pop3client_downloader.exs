@@ -125,6 +125,7 @@ usage() ->
 
 %%%   Convert date from email header to a standard date format: YYYYMMDD_HHMMSS
 %%%   `datestr` - must be conform RFC 2822 date format
+convert_date([]) -> [];
 convert_date(DateStr) ->
      % Example of correctly formatted date: Tue, 14 Oct 2014 19:59:31 +0200
      % Sometimes the day of the week is missing in the date. Fix that:
@@ -143,35 +144,72 @@ convert_date(DateStr) ->
            _       -> string:slice(DateWithWeekDay, 0, 5) ++ "0" ++ DayAndDate
         end,
      {{Year, Month, Day}, {Hour, Minutes, Seconds}} = httpd_util:convert_request_date(DateWithDayAndLeadingZero),
-     lists:flatten(io_lib:fwrite("~4..0B~2..0B~2..0B_~2..0B~2..0B~2..0B", [Year, Month, Day, Hour, Minutes, Seconds])).
-
-bin_retrieve(Client, Directory, Count, Max, Delete) when Count =< Max ->
-  {ok, MailContent} = epop_client:bin_retrieve(Client, Count),
-  {message, HeaderList, _BodyContent } = epop_message:bin_parse(MailContent),
-  {ok, DateStr} = epop_message:find_header(HeaderList, <<"Date">>),
-  FileName = convert_date(erlang:binary_to_list(DateStr)) ++ ".eml",
-  {ok, Device} = file:open(Directory ++ "/" ++ FileName, [write, raw]),
-  file:write(Device, MailContent),
-  file:close(Device),
-  io:format("Created ~s~n", [FileName]),
-  Delete == false orelse epop_client:delete(Client, Count),
-  bin_retrieve(Client, Directory, Count + 1, Max, Delete);
-bin_retrieve(_, _, _, _, _) ->
-  ok.
+     lists:flatten(io_lib:fwrite("~4..0B~2..0B~2..0B-~2..0B~2..0B~2..0B", [Year, Month, Day, Hour, Minutes, Seconds])).
 
 % charlist_retrieve(Client, Directory, Count, Max, Delete) when Count =< Max ->
 %  {ok, MailContent} = epop_client:retrieve(Client, Count),
 %  {message, HeaderList, _BodyContent } = epop_message:parse(MailContent),
 %  {ok, DateStr} = epop_message:find_header(HeaderList, "Date"),
-%  FileName = convert_date(DateStr) ++ ".eml",
+%  FileName = convert_date(DateStr) ++ "-" ++ integer_to_list(erlang:phash2(HeaderList, 999999)) ++ ".eml",
 %  {ok, Device} = file:open(Directory ++ "/" ++ FileName, [write, raw]),
 %  file:write(Device, MailContent),
 %  file:close(Device),
 %  io:format("Created ~s~n", [FileName]),
 %  Delete == false orelse epop_client:delete(Client, Count),
 %  charlist_retrieve(Client, Directory, Count + 1, Max, Delete);
-%charlist_retrieve(_, _, _, _, _) ->
+% charlist_retrieve(_, _, _, _, _) ->
 %  ok.
+
+% bin_retrieve(Client, Directory, Count, Max, Delete) when Count =< Max ->
+%   {ok, MailContent} = epop_client:bin_retrieve(Client, Count),
+%   {message, HeaderList, _BodyContent } = epop_message:bin_parse(MailContent),
+%   {ok, DateStr} = epop_message:find_header(HeaderList, <<"Date">>),
+%   FileName = convert_date(erlang:binary_to_list(DateStr)) ++ "-" ++ integer_to_list(erlang:phash2(HeaderList, 999999)) ++ ".eml",
+%   {ok, Device} = file:open(Directory ++ "/" ++ FileName, [write, raw]),
+%   file:write(Device, MailContent),
+%   file:close(Device),
+%   io:format("Created ~s~n", [FileName]),
+%   Delete == false orelse epop_client:delete(Client, Count),
+%   bin_retrieve(Client, Directory, Count + 1, Max, Delete);
+% bin_retrieve(_, _, _, _, _) ->
+%   ok.
+
+
+stream_retrieve_headers(Acc, Headers, Date) ->
+  case epop_client:retrieve_next(Acc) of
+    {halt,   NewAcc} -> {ok, NewAcc, lists:reverse(Headers), Date};           % no more data, ready
+    {"\r\n", NewAcc} -> {ok, NewAcc, lists:reverse(["\r\n"|Headers]), Date};  % empty line, ready with headers
+    {Data,   NewAcc} -> Boundery = max(string:str(Data, ":"), 1),
+                        LcHeaderName = string:lowercase(string:trim(string:substr(Data, 1, Boundery -1))),
+                        case LcHeaderName of
+                          "date" -> NewDate = string:trim(string:substr(Data, Boundery + 1)),
+                                    stream_retrieve_headers(NewAcc, [Data | Headers], NewDate);
+                          _      ->
+                                    stream_retrieve_headers(NewAcc, [Data | Headers], Date) 
+                        end
+  end.
+
+
+stream_copy_to_file(Device, Acc) ->
+  case epop_client:retrieve_next(Acc) of
+    {halt, NewAcc} -> epop_client:retrieve_after(NewAcc), ok;
+    {Data, NewAcc} -> file:write(Device, Data),
+                      stream_copy_to_file(Device, NewAcc)
+  end.
+
+stream_retrieve(Client, Directory, Count, Max, Delete) when Count =< Max ->
+  {ok, Acc} = epop_client:retrieve_start(Client, Count),
+  {ok, NewAcc, Headers, DateStr} = stream_retrieve_headers(Acc, [], []),
+  FileName = convert_date(DateStr) ++ "-" ++ integer_to_list(erlang:phash2(Headers, 999999)) ++ ".eml",
+  {ok, Device} = file:open(Directory ++ "/" ++ FileName, [write, raw, delayed_write]),
+  file:write(Device, Headers),
+  ok = stream_copy_to_file(Device, NewAcc),
+  file:close(Device),
+  io:format("Created ~s~n", [FileName]),
+  Delete == false orelse epop_client:delete(Client, Count),
+  stream_retrieve(Client, Directory, Count + 1, Max, Delete);
+stream_retrieve(_, _, _, _, _) ->
+  ok.
 
 run(Options) ->
   {ok, Username} = maps:find(username, Options),
@@ -189,21 +227,19 @@ run(Options) ->
   {ConnectStatus, ConnectResponse} = epop_client:connect(Username, Password, ConnectionOptions),
   ConnectStatus == ok orelse exit(ConnectResponse),
   Client = ConnectResponse,
-  try
-     {ok, {TotalCount, _TotalSize}} = epop_client:stat(Client),
-     Max = case maps:find(max, Options) of
-         error -> TotalCount;
-         {ok, MaxValue} -> min(MaxValue, TotalCount)
-     end,
-     Max > 0 orelse io:format("No more mail.~n"),
-     {ok, Directory} = maps:find(output, Options),
-     case file:make_dir(Directory) of
-        ok -> ok;
-       {error, eexist} -> ok;
-       _Else -> exit("Could create directory " ++ Directory)
-     end,
-     % charlist_retrieve(Client, Directory, 1, Max),
-     bin_retrieve(Client, Directory, 1, Max, Delete)
-  after
-     epop_client:quit(Client)
-  end.
+  {ok, {TotalCount, _TotalSize}} = epop_client:stat(Client),
+  Max = case maps:find(max, Options) of
+       error -> TotalCount;
+       {ok, MaxValue} -> min(MaxValue, TotalCount)
+  end,
+  Max > 0 orelse io:format("No more mail.~n"),
+  {ok, Directory} = maps:find(output, Options),
+  case file:make_dir(Directory) of
+    ok -> ok;
+    {error, eexist} -> ok;
+    _Else -> exit("Could not create directory " ++ Directory)
+  end,
+  % charlist_retrieve(Client, Directory, 1, Max, Delete),
+  % bin_retrieve(Client, Directory, 1, Max, Delete),
+  stream_retrieve(Client, Directory, 1, Max, Delete),
+  epop_client:quit(Client).

@@ -44,7 +44,7 @@ parse_headers(Header) ->
     %% do "unfolding" first
     %% read more about unfolding long header fields here - http://www.faqs.org/rfcs/rfc2822.html
     %% "Unfolding is accomplished by simply removing any CRLF
-    %% that is immediately followed by WSP"
+    %% that is immediately followed by white space"
     UnfoldedHeader = re:replace(Header, "\r\n(?=[ \t])","", [{return,list},global]),
     RawHeaders = re:split(UnfoldedHeader, "\r\n", [{return, list}]),
     %io:format("raw headers = ~n~p~n", [RawHeaders]),
@@ -65,8 +65,8 @@ bin_parse_headers(Header) ->
 parse_header(RawHeader) ->
     Boundary = string:str(RawHeader, ":"),
     Boundary>0 orelse error({parse_failed, end_of_header_name_found}),
-    HeaderName = string:strip(string:substr(RawHeader, 1, Boundary - 1)),
-    HeaderVal = string:strip(string:substr(RawHeader, Boundary + 1)),
+    HeaderName = string:trim(string:substr(RawHeader, 1, Boundary - 1)),
+    HeaderVal = string:trim(string:substr(RawHeader, Boundary + 1)),
     {header, HeaderName, HeaderVal}.
 
 -spec bin_parse_header(binary()) -> {header, binary(), binary()}.

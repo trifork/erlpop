@@ -1,54 +1,94 @@
 -module(epop_client_utils).
--author("Harish Mallipeddi <harish.mallipeddi@gmail.com>").
+-author('tobbe@serc.rmit.edu.au').
 
 %%%---------------------------------------------------------------------
 %%% File    : epop_client_utils.erl
 %%% Created : 10 Sep 2008 by harish.mallipeddi@gmail.com
+%%%           Origninal code was in epop.erl, see: 
+%%%           https://github.com/gebi/jungerl/blob/master/lib/epop/src/epop.erl
 %%% Function: Some helper utils for the client.
 %%% ====================================================================
-%%% The contents of this file are subject to the Erlang Public License
-%%% License, Version 1.1, (the "License"); you may not use this file
-%%% except in compliance with the License. You may obtain a copy of the
-%%% License at http://www.erlang.org/EPLICENSE
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
 %%%
-%%% Software distributed under the License is distributed on an "AS IS"
-%%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%%% the License for the specific language governing rights and limitations
-%%% under the License.
+%%%      http://www.apache.org/licenses/LICENSE-2.0
 %%%
-%%% Contents of this file are taken from the original epop code.
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
+%%%
+%%% The Original Code is epop-2-3
+%%%
+%%% The Initial Developer of the Original Code is Ericsson Telecom
+%%% AB. Portions created by Ericsson are Copyright (C), 1998, Ericsson
+%%% Telecom AB. All Rights Reserved.
 %%%---------------------------------------------------------------------
 
 -export([recv_sl/1,recv_ml/1,recv_ml_on_ok/1,tokenize/1]).
--export([bin_recv_ml_on_ok/1]).
+-export([line_by_line_start/2,line_by_line_next/1,line_by_line_after/1,get_client_from_acc/1]).
+
+-include("epop_client.hrl").
 
 -define(CR, 13).
 -define(LF, 10).
--define(CHUNK_SIZE,33000).
 
--include("epop_client.hrl").
+
+-ifndef(ssl_api).
+-define(ssl_api, ssl).
+-endif.
+
+-ifndef(gen_tcp_api).
+-define(gen_tcp_api, gen_tcp).
+-endif.
 
 %% ---------------------------------------------------------
 %% If we are receiving a positive response, then receive
 %% it as a multi-line response. Otherwise as a single-line.
 %% ---------------------------------------------------------
-
-
 recv_ml_on_ok(S) ->
     case recv_3_chars(S) of
-	    [$+,$O,$K|T] ->
-	        recv_ml(S,[$+,$O,$K|T]);
-	    Else ->
-	        recv_sl(S,Else)
+            [$+,$O,$K|T] ->
+                recv_ml(S,[$+,$O,$K|T]);
+            Else ->
+                recv_sl(S,Else)
     end.
 
-bin_recv_ml_on_ok(S) ->
-    case recv_3_chars(S) of
-	    [$+,$O,$K|T] ->
-	        bin_recv_ml(S,[$+,$O,$K|T]);
-	    Else ->
-	        bin_recv_sl(S,Else)
+%% accumulator type for chunked/stream retrieval of data
+-type accumulator() :: {ok | halted, #sk{}, list(string()), any()}.
+
+%% Create accumulator.
+-spec line_by_line_start(#sk{}, any()) -> {ok, #sk{}, [], _}.
+line_by_line_start(S, Data) ->
+   {ok, S, [], Data}.  % return accumulator
+    
+%% return next line and new accumulator.
+-spec line_by_line_next(accumulator()) -> {halt, accumulator()} | {string(), accumulator()}.
+line_by_line_next(Acc) ->
+    {State, S, T, Eol} = Acc,
+    case State of 
+      halted -> {halt, Acc};
+      ok -> {NewLine, NewAcc} = rml(1, S, T, [], Eol, stream_lines),
+            {NewLine ++ Eol, NewAcc}
     end.
+
+%% End streaming. Read from socket until CRLF.CRLF termination.
+line_by_line_after(Acc) ->
+    {State, S, T, Eol} = Acc,
+    case State of 
+      halted -> ok;
+      ok -> try 
+               rml(1,S,T,[],Eol,dev_null),
+               ok
+            catch 
+               exit: {error,Reason} -> {error,Reason}
+            end
+    end.
+
+-spec get_client_from_acc(accumulator()) -> #sk{}.
+get_client_from_acc({_State, S, _Mline, _Data}) -> S.
 
 recv_3_chars(S) -> recv_3_chars(S,recv(S)).
 
@@ -63,53 +103,67 @@ recv_ml(S) ->
     recv_ml(S,[]).
 
 recv_ml(S,Cc) ->
-    rml(1,S,Cc,[],?CHUNK_SIZE, []).
-
-bin_recv_ml(S,Cc) ->
-    rml(1,S,Cc,[],?CHUNK_SIZE, << >>).
+   {CharList, {halted, _S,T, [] }} = rml(1,S,Cc,[], [], char_list),
+   {CharList,T}.
 
 %% A simple state-event machine to handle the byte stuffing
 %% of the termination octet. See also page.2 in the RFC-1939.
 %% Since we are using a raw socket we are using this
 %% continuation based style of programming.
 %% 
-bin_append_reverse_list(Bin,Mline) when is_binary(Bin) -> 
-  BinAdd = erlang:list_to_binary(lists:reverse(Mline)),
-  << Bin/binary, BinAdd/binary >>;
+%% State machine starts at state 1.
+%% If a Carriage return + Line feed is followed by a dot, the dot will be removed, except when followed by another CR + LF.
+%% A CR + LF + dot + CR + LF is the termination marker to end reading. In this case remove CR + LF + dot.
+%% When type is stream_lines, return when a line is read (State 0). Return the line without the ending CR + LF.
+%%
+%% Schema: State Input New state
+%% 0    -> 1 
+%% 1 CR -> 2
+%% 1    -> 1
+%% 2 CR -> 2
+%% 2 LF -> 3
+%% 3 .  -> 4 remove dot
+%% 3    -> 0
+%% 4 CR -> 5
+%% 4    -> 0 
+%% 5 LF -> 6 remove CR LF
+%% 5    -> 0
+%% 6    -> ready
+%% If not enough input data -> call recv and continue at the same State
 
-bin_append_reverse_list(NoBin,_Mline) -> NoBin.
+%% accept line
+rml(0, S,T,[?LF,?CR|Mline],Data,stream_lines) -> {lists:reverse(Mline),{ok,S, T, Data}};  % return new line without CR + LF
+rml(0, S,T,_Mline,_Data,dev_null)           -> rml(1,S,T,[],[],dev_null);            % eat new line & continue
+rml(0, S,T,Mline,Data,char_list)            -> rml(1,S,T,Mline,Data,char_list);      % add new line & continue
 
-empty_list_if_append(Bin,_Mline) when is_binary(Bin) -> [];
-empty_list_if_append(_,Mline) -> Mline.
+%% start here
+rml(1,S,[?CR|T],Mline,Data,Type)            -> rml(2,S,T,[?CR|Mline],Data,Type);     % goto next state
+rml(1,S,[H|T],Mline,Data,Type)              -> rml(1,S,T,[H|Mline],Data,Type);       % stay
 
-rml_ready(Bin,Mline) when is_binary(Bin) -> 
-  bin_append_reverse_list(Bin,Mline);
-rml_ready(_NoBin,Mline) -> 
-  lists:reverse(Mline).
+%% CR accepted
+rml(2,S,[?LF|T],Mline,Data,Type)            -> rml(3,S,T,[?LF|Mline],Data,Type);     % goto next state
+rml(2,S,[?CR|T],Mline,Data,Type)            -> rml(2,S,T,[?CR|Mline],Data,Type);     % stay
+rml(2,S,[H|T],Mline,Data,Type)              -> rml(1,S,[H|T],Mline,Data,Type);           % continue
 
-rml(S1,S2,T,Mline,0,Bin)            -> rml(S1,S2,T,empty_list_if_append(Bin,Mline),?CHUNK_SIZE,bin_append_reverse_list(Bin,Mline));
+%% CR + LF accepted
+rml(3,S,[$.|T],Mline,Data,Type)             -> rml(4,S,T, Mline,Data,Type);          % remove dot, goto next state
+rml(3,S,[H|T],Mline,Data,Type)              -> rml(0,S,[H|T], Mline,Data,Type);          % accept line & continue
 
-rml(1,S,[?CR|T],Mline,C,Bin)        -> rml(2,S,T,[?CR|Mline],C-1,Bin);     % goto next state
-rml(1,S,[?LF|T],Mline,C,Bin)        -> rml(3,S,T,[?LF|Mline],C-1,Bin);     % goto next state
-rml(1,S,[H|T],Mline,C,Bin)          -> rml(1,S,T,[H|Mline],C-1,Bin);       % stay
+%% CR + LF + . accepted
+rml(4,S,[?CR|T],Mline,Data,Type)            -> rml(5,S,T,[?CR|Mline],Data,Type);     % goto next state
+rml(4,S,[H|T],Mline,Data,Type)              -> rml(0,S,[H|T],Mline,Data,Type);           % accept line & continue
 
-rml(2,S,[?LF|T],Mline,C,Bin)        -> rml(3,S,T,[?LF|Mline],C-1,Bin);     % goto next state
-rml(2,S,[H|T],Mline,C,Bin)          -> rml(1,S,[H|T],Mline,C,Bin);         % continue
+%% CR + LF + . + CR accepted
+rml(5,S,[?LF|T],[?CR|Mline],Data,Type)      -> rml(6,S,T, Mline,Data,Type);          % remove CR + LF, goto next state
+rml(5,S,[H|T],[?CR|Mline],Data,Type)        -> rml(0,S,[?CR,H|T],Mline,Data,Type);     % CR back in input, accept line & continue
 
-rml(3,S,[$.|T],Mline,C,Bin)         -> rml(4,S,T,[$.|Mline],C-1,Bin);      % goto next state
-rml(3,S,[H|T],Mline,C,Bin)          -> rml(1,S,[H|T],Mline,C,Bin);         % continue
+%% CR + LF + . + CR + LF accepted, terminate reading
+rml(6,S,T, [?LF,?CR|Mline],Data,stream_lines) -> {lists:reverse(Mline),{halted,S, T, Data}};  %% return last line without CR + LF
+rml(6,S,T, _Mline,Data,dev_null) -> {[], {halted,S,T, Data }};
+rml(6,S,T,  Mline,Data,char_list) -> {lists:reverse(Mline),{halted,S,T,Data} };
 
-rml(4,S,[?CR|T],Mline,C,Bin)        -> rml(5,S,T,[?CR|Mline],C-1,Bin);     % goto next state
-rml(4,S,[?LF|T],Mline,C,Bin)        -> rml(6,S,T,[?LF|Mline],C-1,Bin);     % goto next state
-rml(4,S,[H|T],[$.|Mline],C,Bin)     -> rml(1,S,[H|T],Mline,C,Bin);         % continue
-
-rml(5,S,[?LF|T],Mline,C,Bin)        -> rml(6,S,T,[?LF|Mline],C-1,Bin);     % goto next state
-rml(5,S,[H|T],[$.|Mline],C,Bin)     -> rml(1,S,[H|T],Mline,C-1,Bin);       % (de-)byte stuff
-
-rml(6,_,T,[?LF,?CR,$.|Mline],_C,Bin) -> {rml_ready(Bin,Mline),T};          % accept
-rml(6,_,T,[?LF,$.|Mline],_C,Bin)     -> {rml_ready(Bin,Mline),T};          % accept
-
-rml(State,S,[],Mline,C,Bin)         -> rml(State,S,recv(S),Mline,C,Bin).   % get more
+%% retrieve more data from socket
+rml(State,S,[],Mline,Data,Type)   -> rml(State,S,recv(S),Mline,Data,Type).           % get more
 
 
 %% -----------------------------------------------------
@@ -123,10 +177,6 @@ recv_sl(S) ->
 
 recv_sl(S,Cc) ->
     complete_sl(S,Cc,[]).
-
-bin_recv_sl(S,CC) ->
-    {L,T} = recv_sl(S,CC),
-    {erlang:list_to_binary(L),T}.
 
 complete_sl(S,[?CR|T],Line) ->
     complete_sl_lf(S,T,[?CR|Line]);
@@ -145,13 +195,13 @@ complete_sl_lf(S,[],Line) ->
 recv(S) ->
     case recv_proto(S) of
         {ok,Packet} -> Packet;
-        Else        -> exit(Else)
+        Else        -> exit(Else)  %% for example Else = {error, timeout} or {error, closed}
     end.
 
 recv_proto(S) ->
     case S#sk.ssl of
-        true -> ssl:recv(S#sk.sockfd,0);
-        false -> gen_tcp:recv(S#sk.sockfd,0)
+        true  ->     ?ssl_api:recv(S#sk.sockfd,0);
+        false -> ?gen_tcp_api:recv(S#sk.sockfd,0)
     end.
 
 %% -----------------------------------------------

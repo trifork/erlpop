@@ -1,0 +1,4 @@
+** this is the overview.doc file for the application 'erlpop' **
+
+@title Welcome to the Erlang pop3 client.
+@doc Connect to a mail server via the pop3 protocol. Receive email. Parse email headers.
