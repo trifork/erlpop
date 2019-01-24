@@ -309,13 +309,8 @@ retrieve_resource_functions(S,MsgNum) when is_integer(MsgNum) ->
 %% @end -------------------------------
 
 retrieve_resource_functions(S, MsgNum, EOL) when is_integer(MsgNum) ->
-    case retrieve_start(S, MsgNum, EOL) of
-        {ok, Acc} ->
-            StartFun = fun _() ->  Acc end,
-            [StartFun, fun resource_line_by_line_next/1, fun retrieve_after/1];
-        Else ->
-            Else
-    end.
+    StartFun = fun _() -> {ok, Acc} = retrieve_start(S, MsgNum, EOL), Acc end,
+    [StartFun, fun resource_line_by_line_next/1, fun retrieve_after/1].
 
 resource_line_by_line_next(Acc) ->
   case line_by_line_next(Acc) of
