@@ -315,7 +315,7 @@ retrieve_resource_functions(S, MsgNum, EOL) when is_integer(MsgNum) ->
 resource_line_by_line_next(Acc) ->
   case line_by_line_next(Acc) of
     {halt, NewAcc} -> {halt, NewAcc};
-    {Data, NewAcc} -> {[Data], NewAcc}  % See Elixir Stream.resource/3
+    {Data, NewAcc} -> {[erlang:list_to_binary(Data)], NewAcc}  % In [], see Elixir Stream.resource/3
   end.
 
 %% ---------------------------
