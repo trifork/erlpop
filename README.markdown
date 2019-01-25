@@ -67,7 +67,7 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
     
 ### escript example for downloading emails ###
 
-    escript pop3client_downloader
+    escript pop3client_downloader.exs
     
     
   *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
