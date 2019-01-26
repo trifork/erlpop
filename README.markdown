@@ -14,7 +14,7 @@ epop author: [*Torbjörn Törnkvist*](https://web.archive.org/web/19990202132504
 Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) is NOT supported.
 
 ### Changes ###
-    2019-01-26 Nico Hoogervorst  - v1.3, added streaming interface. Added NOOP. Stricter bye-(de-)stuffing
+    2019-01-26 Nico Hoogervorst  - v1.3, added line-by-line/streaming interface. Added NOOP. Stricter byte-stuffing. eunit tests.
     2018-11-09 Nico Hoogervorst  - v1.2, case-insensitive header lookup. Added erlpop as package 'pop3client' in hex.pm
     2017-06-13 Nico Hoogervorst  - Added 'bin_retrieve' get binary data instead of character list to reduce memory consumption
     2016-08-05 Nico Hoogervorst  - Erlang V8.0.2 / OTP 19 upgrade
@@ -43,6 +43,17 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
     8> {ok, Date} = epop_message:find_header(HeaderList, <<"Date">>). 
     9> epop_client:quit(Client).
 
+  *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
+  
+  The retrieval of an email can also be done line-by-line using retrieve_start, retrieve_next, retrieve_after. 
+  Always call the retrievE_after when ready. 
+  
+    erl
+    1> {ok, Acc} = epop_client:retrieve_start(Client, Count).
+    2> {HaltOrNewLine, NewAcc} = epop_client:retrieve_next(Acc).
+    3> ok = epop_client:retrieve_after(NewAcc).
+     
+
 ### Usage Elixir ###
 
     Specially note how easy it is to create an Elixir stream
@@ -60,14 +71,16 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
     iex(9)> mail1stream = apply(Stream, :resource, :epop_client.retrieve_resource_functions(client, 1))
     iex(10)> # read from the stream. Example:
     iex(11)> mail1stream |> Enum.find(fn(val) -> String.contains?(val, "Waldo") end)  |> String.trim
-    iex(12)> # use the stream again and it will read the whole mail again. For example, write to fie:
+    iex(12)> # use the stream again and it will read the whole mail again. Now write to file:
     iex(13)> file = File.stream!("mail1.eml", [:write, :delayed_write])
     iex(14)> mail1stream |> Enum.into(file)
     iex(15)> :epop_client.quit(client)
-    
+
+  *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
+  
 ### escript example for downloading emails ###
 
-    escript pop3client_downloader.exs
+    escript pop3client_downloader.exs --help
     
     
-  *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
+
