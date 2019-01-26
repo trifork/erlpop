@@ -75,6 +75,7 @@ line_by_line_next(Acc) ->
     end.
 
 %% End streaming. Read from socket until CRLF.CRLF termination.
+-spec line_by_line_after(accumulator()) -> ok.
 line_by_line_after(Acc) ->
     {State, S, T, Eol} = Acc,
     case State of 

@@ -39,6 +39,12 @@
                            get_client_from_acc/1]).
 
 -include("epop_client.hrl").
+-opaque connection() :: #sk{}.
+-export_type([connection/0]).
+
+%% accumulator type for chunked/stream retrieval of data
+-opaque retrieve_acc() :: {ok | halted, #sk{}, list(string()), any()}.
+-export_type([retrieve_acc/0]).
 
 %% Chunks of charlists are converted to binary for memory efficiency.
 -define(CHUNK_SIZE, 16600).
@@ -353,6 +359,7 @@ retrieve_start(S, MsgNum, Eol) when is_integer(MsgNum) ->
 %% Get mail next line
 %% @end -------------
 
+-spec retrieve_next(retrieve_acc()) -> {halt, retrieve_acc()} | {string(), retrieve_acc()}.
 retrieve_next(Acc) ->
     line_by_line_next(Acc).
 
@@ -361,6 +368,7 @@ retrieve_next(Acc) ->
 %% Finish get mail line-by-line
 %% @end -----------------------
 
+-spec retrieve_after(retrieve_acc()) -> ok.
 retrieve_after(Acc) ->
     line_by_line_after(Acc).
 
@@ -625,6 +633,5 @@ s2i(String) when is_list(String) ->
 strip([H|T]) when H>-48,H=<57 -> [H|strip(T)];
 strip(_)                      -> [].
 
-l2i(List) when is_list(List)  -> list_to_integer(List);
-l2i(Int) when is_integer(Int) -> Int.
-
+l2i(List) when is_list(List)  -> list_to_integer(List).
+% l2i(Int) when is_integer(Int) -> Int.  string:tokens always returns strings

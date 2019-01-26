@@ -201,7 +201,7 @@ stream_retrieve_headers(Acc, Headers, Date) ->
 
 stream_copy_to_file(Device, Acc) ->
   case epop_client:retrieve_next(Acc) of
-    {halt, NewAcc} -> epop_client:retrieve_after(NewAcc), ok;
+    {halt, NewAcc} -> epop_client:retrieve_after(NewAcc);
     {Data, NewAcc} -> file:write(Device, Data),
                       stream_copy_to_file(Device, NewAcc)
   end.
