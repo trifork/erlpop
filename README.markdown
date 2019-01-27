@@ -80,7 +80,9 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
   
 ### escript example for downloading emails ###
 
-    escript pop3client_downloader.exs --help
+    escript pop3client_downloader --help
+    
+    escript pop3client_downloader --username yourname@gmail.com --password yourpassword --max 10 --output myinbox
     
     
 
