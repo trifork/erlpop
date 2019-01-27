@@ -33,15 +33,15 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
 
     erl
     1> User = "yourname@gmail.com".
-    2> {ok, Client} = epop_client:connect(User, "yourpassword",
+    2> {ok, Connection} = epop_client:connect(User, "yourpassword",
     2>                                    [ {addr, "pop.gmail.com"}, {port, 995}, {user, User}, ssl ] ).
-    3> {ok, {TotalCount, TotalSize}} = epop_client:stat(Client).
+    3> {ok, {TotalCount, TotalSize}} = epop_client:stat(Connection).
     4> {ok, TopContent} = epop_client:top(client, 1, 20).
     5> {message, HeaderList, Body} = epop_message:parse(TopContent)
-    6> {ok, MailContent} = epop_client:bin_retrieve(Client, 1).
+    6> {ok, MailContent} = epop_client:bin_retrieve(Connection, 1).
     7> {message, HeaderList, BodyContent} = epop_message:bin_parse(MailContent).
     8> {ok, Date} = epop_message:find_header(HeaderList, <<"Date">>). 
-    9> epop_client:quit(Client).
+    9> epop_client:quit(Connection).
 
   *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
   
@@ -49,7 +49,7 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
   Always call the retrievE_after when ready. 
   
     erl
-    1> {ok, Acc} = epop_client:retrieve_start(Client, Count).
+    1> {ok, Acc} = epop_client:retrieve_start(Connection, 1).
     2> {HaltOrNewLine, NewAcc} = epop_client:retrieve_next(Acc).
     3> ok = epop_client:retrieve_after(NewAcc).
      
@@ -60,21 +60,21 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
 
     iex -S mix
     iex(1)> user = 'yourname@gmail.com'
-    iex(2)> {ok, client} = :epop_client.connect(user, 'yourpassword', 
+    iex(2)> {ok, connection} = :epop_client.connect(user, 'yourpassword', 
     ...(2)>                                     [ {:addr, 'pop.gmail.com'}, {:port, 995}, {:user, user}, :ssl] )
-    iex(3)> {:ok, {total_count, total_size}} = :epop_client.stat(client)
+    iex(3)> {:ok, {total_count, total_size}} = :epop_client.stat(connection)
     iex(4)> # read headers and 20 lines of the body of the first email
-    iex(5)> {:ok, mail_content} = :epop_client.top(client, 1, 20)
+    iex(5)> {:ok, mail_content} = :epop_client.top(connection, 1, 20)
     iex(6)> # separate headers and body
     iex(7)> {:message, header_list, body} = :epop_message.parse(mail_content)
     iex(8)> # create lazy stream resource for the first email
-    iex(9)> mail1stream = apply(Stream, :resource, :epop_client.retrieve_resource_functions(client, 1))
+    iex(9)> mail1stream = apply(Stream, :resource, :epop_client.retrieve_resource_functions(connection, 1))
     iex(10)> # read from the stream. Example:
     iex(11)> mail1stream |> Enum.find(fn(val) -> String.contains?(val, "Waldo") end)  |> String.trim
     iex(12)> # use the stream again and it will read the whole mail again. Now write to file:
     iex(13)> file = File.stream!("mail1.eml", [:write, :delayed_write])
     iex(14)> mail1stream |> Enum.into(file)
-    iex(15)> :epop_client.quit(client)
+    iex(15)> :epop_client.quit(connection)
 
   *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
   
