@@ -14,6 +14,7 @@ epop author: [*Torbjörn Törnkvist*](https://web.archive.org/web/19990202132504
 Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) is NOT supported.
 
 ### Changes ###
+    2019-05-21 Nico Hoogervorst  - v1.3.1, Replaced obsolete functions; string:tokens, string:str, string:substr, string:cspan.    
     2019-01-26 Nico Hoogervorst  - v1.3, added line-by-line/streaming interface. Added NOOP. Stricter byte-stuffing. eunit tests.
     2018-11-09 Nico Hoogervorst  - v1.2, case-insensitive header lookup. Added erlpop as package 'pop3client' in hex.pm
     2017-06-13 Nico Hoogervorst  - Added 'bin_retrieve' get binary data instead of character list to reduce memory consumption
@@ -36,11 +37,11 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
     2> {ok, Connection} = epop_client:connect(User, "yourpassword",
     2>                                    [ {addr, "pop.gmail.com"}, {port, 995}, {user, User}, ssl ] ).
     3> {ok, {TotalCount, TotalSize}} = epop_client:stat(Connection).
-    4> {ok, TopContent} = epop_client:top(client, 1, 20).
-    5> {message, HeaderList, Body} = epop_message:parse(TopContent)
+    4> {ok, TopContent} = epop_client:top(Connection, 1, 20).
+    5> {message, HeaderList, Body} = epop_message:parse(TopContent).
     6> {ok, MailContent} = epop_client:bin_retrieve(Connection, 1).
-    7> {message, HeaderList, BodyContent} = epop_message:bin_parse(MailContent).
-    8> {ok, Date} = epop_message:find_header(HeaderList, <<"Date">>). 
+    7> {message, BinHeaderList, BodyContent} = epop_message:bin_parse(MailContent).
+    8> {ok, Date} = epop_message:find_header(BinHeaderList, <<"Date">>). 
     9> epop_client:quit(Connection).
 
   *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
