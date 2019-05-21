@@ -22,59 +22,40 @@
 
 -export([parse/1, find_header/2, bin_parse/1]).
 
--spec parse(string()) -> {message, list({header,string(),string()}), string()}.
+-spec parse(string()) -> {message, list({header, string(), string()}), string()}.
 parse(Message) ->
-    Boundary = string:str(Message, "\r\n\r\n"),
-    Boundary>0 orelse error({parse_failed, end_of_header_not_found}),
-    Header = string:substr(Message, 1, Boundary - 1),
-    Body = string:substr(Message, Boundary + 4),
-    Headers = parse_headers(Header),
-    {message, Headers, Body}.
+    parse(Message, list).
 
 -spec bin_parse(binary()) -> {message, list({header, binary(), binary()}), binary()}.
 bin_parse(Message) ->
-    case re:split(Message, <<"\r\n\r\n">>, [{parts, 2}]) of
-      [Header, Body] -> Headers = bin_parse_headers(Header),
-                        {message, Headers, Body}; 
+    parse(Message, binary).
+
+-spec parse(string() | binary(), list | binary) -> {message, list({header, string() | binary(), string() | binary()}), string() | binary()}.
+parse(Message, ReturnType) ->
+    case re:split(Message, "\r\n\r\n", [{return, ReturnType}, {parts, 2}]) of
+      [Header, Body] -> Headers = parse_headers(Header, ReturnType),
+                        {message, Headers, Body};
       [_NotFound] -> error({parse_failed, end_of_header_not_found})
     end.
 
--spec parse_headers(string()) -> list({header,string(),string()}).
-parse_headers(Header) ->
+-spec parse_headers(string() | binary(), list | binary) -> list({header, string() | binary(), string() | binary()}).
+parse_headers(Header, ReturnType) ->
     %% do "unfolding" first
     %% read more about unfolding long header fields here - http://www.faqs.org/rfcs/rfc2822.html
     %% "Unfolding is accomplished by simply removing any CRLF
     %% that is immediately followed by white space"
-    UnfoldedHeader = re:replace(Header, "\r\n(?=[ \t])","", [{return,list},global]),
-    RawHeaders = re:split(UnfoldedHeader, "\r\n", [{return, list}]),
+    UnfoldedHeader = re:replace(Header, "\r\n(?=[ \t])", "", [{return, ReturnType}, global]),
+    RawHeaders = re:split(UnfoldedHeader, "\r\n", [{return, ReturnType}]),
     %io:format("raw headers = ~n~p~n", [RawHeaders]),
-    lists:map(fun parse_header/1, RawHeaders).
+    ParseHeaderFun = fun(RawHeader) -> parse_header(RawHeader, ReturnType) end,
+    lists:map(ParseHeaderFun, RawHeaders).
 
--spec bin_parse_headers(binary()) -> list({header, binary(), binary()}).
-bin_parse_headers(Header) ->
-    %% do "unfolding" first
-    %% read more about unfolding long header fields here - http://www.faqs.org/rfcs/rfc2822.html
-    %% "Unfolding is accomplished by simply removing any CRLF
-    %% that is immediately followed by WSP"
-    UnfoldedHeader = re:replace(Header, "\r\n(?=[ \t])","", [{return,binary},global]),
-    RawHeaders = re:split(UnfoldedHeader, "\r\n", [{return,binary}]),
-    %io:format("raw headers = ~n~p~n", [RawHeaders]),
-    lists:map(fun bin_parse_header/1, RawHeaders).
-
--spec parse_header(string()) -> {header,string(),string()}.
-parse_header(RawHeader) ->
-    Boundary = string:str(RawHeader, ":"),
-    Boundary>0 orelse error({parse_failed, end_of_header_name_found}),
-    HeaderName = string:trim(string:substr(RawHeader, 1, Boundary - 1)),
-    HeaderVal = string:trim(string:substr(RawHeader, Boundary + 1)),
-    {header, HeaderName, HeaderVal}.
-
--spec bin_parse_header(binary()) -> {header, binary(), binary()}.
-bin_parse_header(RawHeader) ->
-    case re:split(RawHeader, <<"\s*:\s*">>, [{parts, 2}]) of
-      [HeaderName, HeaderVal] -> {header, 
-                                  re:replace(HeaderName, "^\\s+", "",[{return,binary}]),
-                                  re:replace(HeaderVal,  "\\s+$", "",[{return,binary}])};
+-spec parse_header(string() | binary(), list | binary) -> {header, string() | binary(), string() | binary()}.
+parse_header(RawHeader, ReturnType) ->
+    case re:split(RawHeader, "\s*:\s*", [{return, ReturnType}, {parts, 2}]) of
+      [HeaderName, HeaderVal] -> {header,
+                                  string:trim(HeaderName, leading),
+                                  string:trim(HeaderVal, trailing)};
       [_NotFound] -> error({parse_failed, end_of_header_name_found})
     end.
 

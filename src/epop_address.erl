@@ -203,11 +203,10 @@ acc_to_str(L) ->
 %%% Tokenize according to 'specials'.
 tokenize([]) -> [];
 tokenize(S=[H|T]) ->
-    case string:cspan(S, "()<>[]:;@\\,.\" \t") of
-        0 ->
+    case string:take(S, "()<>[]:;@\\,.\" \t", true) of
+      {"",_} ->
             [H | tokenize(T)];
-        N ->
-            {W,S2} = lists:split(N, S),
+      {W,S2} ->
             [W | tokenize(S2)]
     end.
 

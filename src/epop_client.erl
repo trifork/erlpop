@@ -96,7 +96,7 @@ parse_notification(S,Passwd) ->
     end.
 
 parse_user(T) ->
-    case string:tokens(T," \r\n") of
+    case string:lexemes(T," " ++ [[$\r,$\n]]) of
         [User|_] -> User;
         _ ->
             error_msg("epop_client: Couldn't parse User !~n"),
@@ -209,7 +209,7 @@ get_stat(S) ->
     case recv_sl(S) of
         {[$+,$O,$K|T],_} ->
             if_snoop(S,sender,"+OK" ++ T),
-            [NumMsg,TotSize] = string:tokens(T," \r\n"),
+            [NumMsg,TotSize] = string:lexemes(T," " ++ [[$\r,$\n]]),
             {ok,{s2i(NumMsg),s2i(TotSize)}};
         {[$-,$E,$R,$R|T],_} ->
             if_snoop(S,sender,"-ERR" ++ T),
@@ -257,13 +257,13 @@ get_scanlist(S,MultiLine) ->
             if_snoop(S,sender,Line1),
             F = fun(L) -> if_snoop(S,sender,L) end,
             lists:foreach(F,Ls),
-            F2 = fun(Str) -> [Num,Sz] = string:tokens(Str," "),
+            F2 = fun(Str) -> [Num,Sz] = string:lexemes(Str," "),
                              {l2i(Num),l2i(Sz)}
                  end,
             {ok,lists:map(F2,Ls)};
         {[$+,$O,$K|T],_} when MultiLine==false ->
             if_snoop(S,sender,"+OK" ++ T),
-            [MsgNum,MsgSize] = string:tokens(T," "),
+            [MsgNum,MsgSize] = string:lexemes(T," "),
             {ok,{l2i(MsgNum),l2i(MsgSize)}};
         {[$-,$E,$R,$R|T],_} ->
             %% According to RFC-1939 page 6. We can only
@@ -466,13 +466,13 @@ get_uidllist(S,MultiLine) ->
             if_snoop(S,sender,Line1),
             F = fun(L) -> if_snoop(S,sender,L) end,
             lists:foreach(F,Ls),
-            F2 = fun(Str) -> [Num,Id] = string:tokens(Str," "),
+            F2 = fun(Str) -> [Num,Id] = string:lexemes(Str," "),
                              {l2i(Num),Id}
                  end,
             {ok,lists:map(F2,Ls)};
         {[$+,$O,$K|T],_} when MultiLine==false ->
             if_snoop(S,sender,"+OK" ++ T),
-            [MsgNum,MsgId] = string:tokens(T," "),
+            [MsgNum,MsgId] = string:lexemes(T," "),
             {ok,{l2i(MsgNum),MsgId}};
         {[$-,$E,$R,$R|T],_} ->
             %% We assume that the behaviour here is similar
@@ -596,7 +596,7 @@ init_options(Uid,Adr,Options) ->
     set_options(Options,#sk{user=Uid,addr=Adr}).
 
 user_address(User) ->
-    case string:tokens(User,"@") of
+    case string:lexemes(User,"@") of
         List when length(List)>1 -> make_uid_address(List);
         _ -> throw({error,address_format})
     end.
@@ -634,4 +634,4 @@ strip([H|T]) when H>-48,H=<57 -> [H|strip(T)];
 strip(_)                      -> [].
 
 l2i(List) when is_list(List)  -> list_to_integer(List).
-% l2i(Int) when is_integer(Int) -> Int.  string:tokens always returns strings
+% l2i(Int) when is_integer(Int) -> Int.  string:lexemes always returns strings
