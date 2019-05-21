@@ -32,7 +32,8 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
 
 ### Usage Erlang ###
 
-    erl
+    rebar3 compile
+    erl -pa ./_build/default/lib/pop3client/ebin
     1> User = "yourname@gmail.com".
     2> {ok, Connection} = epop_client:connect(User, "yourpassword",
     2>                                    [ {addr, "pop.gmail.com"}, {port, 995}, {user, User}, ssl ] ).
@@ -40,7 +41,7 @@ Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) 
     4> {ok, TopContent} = epop_client:top(Connection, 1, 20).
     5> {message, HeaderList, Body} = epop_message:parse(TopContent).
     6> {ok, MailContent} = epop_client:bin_retrieve(Connection, 1).
-    7> {message, BinHeaderList, BodyContent} = epop_message:bin_parse(MailContent).
+    7> {message, BinHeaderList, BinBody} = epop_message:bin_parse(MailContent).
     8> {ok, Date} = epop_message:find_header(BinHeaderList, <<"Date">>). 
     9> epop_client:quit(Connection).
 
