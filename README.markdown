@@ -11,7 +11,7 @@ epop author: [*Torbjörn Törnkvist*](https://web.archive.org/web/19990202132504
 
 [RFC 1939](https://tools.ietf.org/html/rfc1939)
 
-Note that the proposed standard [RFC 2449](https://tools.ietf.org/html/rfc2449) is NOT supported.
+Note that the proposed standards [RFC 2449](https://tools.ietf.org/html/rfc2449) (CAPA), [RFC 1734/5034](https://tools.ietf.org/html/rfc1734) (AUTH), [RFC 2595](https://tools.ietf.org/html/rfc2595) (STLS), [RFC 1082](https://tools.ietf.org/html/rfc1082) (XTND) are NOT supported.
 
 ### Changes ###
     2019-05-21 Nico Hoogervorst  - v1.3.1, Replaced obsolete functions; string:tokens, string:str, string:substr, string:cspan.    
