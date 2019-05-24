@@ -188,18 +188,15 @@ stream_retrieve_headers(Acc, Headers, Date) ->
   case epop_client:retrieve_next(Acc) of
     {halt,   NewAcc} -> {ok, NewAcc, lists:reverse(Headers), Date};           % no more data, ready
     {"\r\n", NewAcc} -> {ok, NewAcc, lists:reverse(["\r\n"|Headers]), Date};  % empty line, ready with headers
-    {Data,   NewAcc} -> case re:split(Data, ":", [{return, binary}, {parts, 2}]) of
-                           [Header, Body] -> case string:lowercase(Header) of
-                                               "date" -> NewDate = string:trim(Body),
-                                                         stream_retrieve_headers(NewAcc, [Data | Headers], NewDate);
-                                               _      ->
-                                                         stream_retrieve_headers(NewAcc, [Data | Headers], Date) 
-                                             end;
-                           [_NotFound]    -> 
-                                                         stream_retrieve_headers(NewAcc, [Data | Headers], Date) 
+    {Data,   NewAcc} -> Boundery = max(string:str(Data, ":"), 1),
+                        LcHeaderName = string:lowercase(string:substr(Data, 1, Boundery -1)),
+                        case LcHeaderName of
+                          "date" -> NewDate = string:trim(string:substr(Data, Boundery + 1)),
+                                    stream_retrieve_headers(NewAcc, [Data | Headers], NewDate);
+                          _      ->
+                                    stream_retrieve_headers(NewAcc, [Data | Headers], Date) 
                         end
   end.
-
 
 stream_copy_to_file(Device, Acc) ->
   case epop_client:retrieve_next(Acc) of
