@@ -28,7 +28,7 @@
 
 -vc('$Id$ ').
 -export([connect/2, connect/3, noop/1, stat/1, scan/1, scan/2, retrieve/2, bin_retrieve/2,
-         delete/2, reset/1, quit/1, uidl/1, uidl/2, top/3]).
+         delete/2, reset/1, quit/1, uidl/1, uidl/2, top/3, capa/1]).
 -export([notify/3,accept/2,accept/3]).
 -export([retrieve_resource_functions/2, retrieve_resource_functions/3]).
 -export([retrieve_start/2, retrieve_start/3, retrieve_next/1, retrieve_after/1]).
@@ -414,6 +414,15 @@ top(S,MsgNum,Lines) when is_integer(MsgNum), is_integer(Lines) ->
     ok = deliver(S,Msg),
     if_snoop(S,client,Msg),
     get_retrieve(S).
+
+capa(S) ->
+    Msg = "CAPA",
+    ok = deliver(S,Msg),
+    if_snoop(S,client,Msg),
+    case get_retrieve(S) of
+        {ok,Capa} -> {ok,string:lexemes(Capa,[[$\r,$\n]])};
+             Else -> Else
+    end.
 
 get_retrieve(S) ->
     case recv_ml_on_ok(S) of
