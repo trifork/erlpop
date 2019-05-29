@@ -11,7 +11,7 @@ epop author: [*Torbjörn Törnkvist*](https://web.archive.org/web/19990202132504
 
 [RFC 1939](https://tools.ietf.org/html/rfc1939)
 
-Note that the proposed standards [RFC 2449](https://tools.ietf.org/html/rfc2449) (CAPA), [RFC 1734/5034](https://tools.ietf.org/html/rfc1734) (AUTH), [RFC 2595](https://tools.ietf.org/html/rfc2595) (STLS), [RFC 1082](https://tools.ietf.org/html/rfc1082) (XTND) are NOT supported.
+Note that the proposed standards [RFC 2449](https://tools.ietf.org/html/rfc2449) (Pipelining), [RFC 1734/5034](https://tools.ietf.org/html/rfc1734) (AUTH), [RFC 2595](https://tools.ietf.org/html/rfc2595) (STLS), [RFC 1082](https://tools.ietf.org/html/rfc1082) (XTND) are NOT supported.
 
 ### Changes ###
     2019-05-21 Nico Hoogervorst  - v1.3.1, Replaced obsolete functions; string:tokens, string:str, string:substr, string:cspan.    
@@ -50,11 +50,24 @@ Note that the proposed standards [RFC 2449](https://tools.ietf.org/html/rfc2449)
   The retrieval of an email can also be done line-by-line using retrieve_start, retrieve_next, retrieve_after. 
   Always call the retrievE_after when ready. 
   
-    erl
+    erl -pa ./_build/default/lib/pop3client/ebin
     1> {ok, Acc} = epop_client:retrieve_start(Connection, 1).
     2> {HaltOrNewLine, NewAcc} = epop_client:retrieve_next(Acc).
     3> ok = epop_client:retrieve_after(NewAcc).
-     
+
+  Address list parser, like [RFC 5322](https://tools.ietf.org/html/rfc5322)
+
+    erl -pa ./_build/default/lib/pop3client/ebin
+    1> {ok, AddressList} = epop_address:parse_list("\"hendrik\" <h.lorentz@gmail.com>, philipp <philipp.reis@telephon.de>").    
+    {ok,[{{"h.lorentz","gmail.com"},"hendrik"},
+         {{"philipp.reis","telephon.de"},"philipp"}]}
+    2> {ok,[Group]} = epop_address:parse_list("Managing Partners:ben@example.com,carol@example.com;").
+    {ok,[{group,"Managing Partners",
+                [{{"ben","example.com"},[]},{{"carol","example.com"},[]}]}]}
+    3> epop_address:expand_groups([Group]).
+    [{{"ben","example.com"},[]},{{"carol","example.com"},[]}]
+
+
 
 ### Usage Elixir ###
 
@@ -74,15 +87,19 @@ Note that the proposed standards [RFC 2449](https://tools.ietf.org/html/rfc2449)
     iex(10)> # read from the stream. Example:
     iex(11)> mail1stream |> Enum.find(fn(val) -> String.contains?(val, "Waldo") end)  |> String.trim
     iex(12)> # use the stream again and it will read the whole mail again. Now write to file:
-    iex(13)> file = File.stream!("mail1.eml", [:write, :delayed_write])
-    iex(14)> mail1stream |> Enum.into(file)
+    iex(13)> output_file = File.stream!("mail1.eml", [:write, :delayed_write])
+    iex(14)> mail1stream |> Enum.into(output_file)
     iex(15)> :epop_client.quit(connection)
 
   *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
   
 ### escript example for downloading emails ###
 
+    wget -q https://raw.github.com/nico-amsterdam/erlpop/master/pop3client_downloader
+
     escript pop3client_downloader --help
+    
+    escript pop3client_downloader
     
     escript pop3client_downloader --username yourname@gmail.com --password yourpassword --max 10 --output myinbox
     
