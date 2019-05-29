@@ -48,7 +48,7 @@ Note that the proposed standards [RFC 2449](https://tools.ietf.org/html/rfc2449)
   *NOTE*: It's important to call epop_client:quit/1 at the end, as it's responsible for closing (tcp/tls) socket.
   
   The retrieval of an email can also be done line-by-line using retrieve_start, retrieve_next, retrieve_after. 
-  Always call the retrievE_after when ready. 
+  Always call the retrieve_after when ready. 
   
     erl -pa ./_build/default/lib/pop3client/ebin
     1> {ok, Acc} = epop_client:retrieve_start(Connection, 1).
