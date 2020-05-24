@@ -1,4 +1,6 @@
 *.beam
 ebin/*.app
 .eunit/
+_build/
+.rebar/
 *~

@@ -1,10 +1,10 @@
 all:
-	./rebar compile
+	rebar3 compile
 
 clean:
-	./rebar clean
+	rebar3 clean
 
 test:
-	./rebar eunit skip_deps=true
+	rebar3 eunit skip_deps=true
 
 .PHONY: all clean test

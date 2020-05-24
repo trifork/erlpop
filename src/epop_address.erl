@@ -5,18 +5,19 @@
 %%% File    : epop_address.erl
 %%% Function: Utility to parse email addresses and address lists
 %%% ====================================================================
-%%% The contents of this file are subject to the Erlang Public License
-%%% License, Version 1.1, (the "License"); you may not use this file
-%%% except in compliance with the License. You may obtain a copy of the
-%%% License at http://www.erlang.org/EPLICENSE
+%%% Licensed under the Apache License, Version 2.0 (the "License");
+%%% you may not use this file except in compliance with the License.
+%%% You may obtain a copy of the License at
 %%%
-%%% Software distributed under the License is distributed on an "AS IS"
-%%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%%% the License for the specific language governing rights and limitations
-%%% under the License.
+%%%      http://www.apache.org/licenses/LICENSE-2.0
+%%%
+%%% Unless required by applicable law or agreed to in writing, software
+%%% distributed under the License is distributed on an "AS IS" BASIS,
+%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%%% See the License for the specific language governing permissions and
+%%% limitations under the License.
 %%%
 %%%---------------------------------------------------------------------
-
 %%% Purpose: Email address list parser.
 %%% Status:
 %%% Is complete enough to be better than nothing (and, presumably,
@@ -33,7 +34,7 @@
 -type address_group() :: {group, GroupName::string(), [named_address()]}.
 
 %%% Flatten address list by expanding groups.
--spec expand_groups/1 :: ([named_address() | address_group()]) -> [named_address()].
+-spec expand_groups([named_address() | address_group()]) -> [named_address()].
 expand_groups(Items) when is_list(Items) ->
     lists:flatmap(fun({group, _GroupName, L}) -> L;
                      ({_,_}=Addr)             -> [Addr]
@@ -41,7 +42,7 @@ expand_groups(Items) when is_list(Items) ->
                   Items).
 
 %%% Parse an address-list according to RFC5322.
--spec parse_list/1 :: (string()) -> [named_address() | address_group()].
+-spec parse_list(string()) -> {ok, [named_address() | address_group()]} | {error, string()}.
 parse_list(S) ->
     try {ok, address_list(tokenize(S), [])}
     catch
@@ -113,10 +114,7 @@ address([$: | S], NameAcc) ->
     %% Named group
     %% TODO: Handle groups better
     GroupName = acc_to_str(pop_ws(NameAcc)),
-    case address_list_in_group(skip_ws(S)) of
-        {group_end, Addrs, S2} -> ok;
-        Addrs -> S2="", ok % ";" was missing
-    end,
+    {group_end, Addrs, S2} = address_list_in_group(skip_ws(S)),
     {{group, GroupName, Addrs}, S2};
 address([$; | S], []) ->
     %% End of group.
@@ -206,11 +204,10 @@ acc_to_str(L) ->
 %%% Tokenize according to 'specials'.
 tokenize([]) -> [];
 tokenize(S=[H|T]) ->
-    case string:cspan(S, "()<>[]:;@\\,.\" \t") of
-        0 ->
+    case string:take(S, "()<>[]:;@\\,.\" \t", true) of
+      {"",_} ->
             [H | tokenize(T)];
-        N ->
-            {W,S2} = lists:split(N, S),
+      {W,S2} ->
             [W | tokenize(S2)]
     end.
 
